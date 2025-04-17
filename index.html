@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Langton's Ant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="antCanvas"></canvas>
+
+    <div id="controlPanel">
+        <div class="panel-header">
+            <button id="minimizeBtn" title="Minimize Panel">&#x2212;</button>
+            <button id="maximizeBtn" title="Maximize Panel">&#x25A1;</button>
+        </div>
+        <div class="panel-content">
+            <div class="button-group">
+                <button id="startStopBtn" title="Pause/Play">❚❚</button>
+                <button id="resetBtn" title="Reset Simulation">&#x21BA;</button>
+                <button id="resetViewBtn" title="Reset View">&#x26F6;</button>
+            </div>
+            <div class="slider-container">
+                <label for="simSpeedSlider">Steps/Sec:</label>
+                <input type="range" id="simSpeedSlider" min="1" max="100" value="50" title="Target simulation steps per second (50=60, >50 exponential)">
+                <span id="simSpeedValue">60</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
