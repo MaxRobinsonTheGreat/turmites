@@ -21,7 +21,7 @@ canvas {
     display: flex;
     flex-direction: column;
     /* align-items: flex-start; */ /* Let content stretch */
-    min-width: 220px; /* Increased panel width */
+    min-width: 280px; /* Increased panel width further */
     transition: min-height 0.3s ease, padding 0.3s ease, min-width 0.3s ease;
     gap: 10px; /* Increased gap between header, content */
 }
@@ -93,6 +93,43 @@ canvas {
     line-height: 1;
     min-width: 36px;
     text-align: center;
+    transition: background-color 0.1s ease, transform 0.05s ease; /* Added transitions */
+}
+
+/* General hover for non-disabled buttons */
+#controlPanel button:not(:disabled):hover {
+    background-color: #686868; /* Slightly lighter grey */
+}
+
+/* General active state for non-disabled buttons */
+#controlPanel button:not(:disabled):active {
+    background-color: #7a7a7a; /* Even lighter grey when clicked */
+    transform: translateY(1px); /* Subtle press effect */
+}
+
+/* Disabled button state */
+#controlPanel button:disabled {
+    background-color: #444;
+    color: #888;
+    cursor: not-allowed;
+    transform: none; /* Ensure no press effect when disabled */
+}
+
+/* Highlight Apply button when enabled */
+#controlPanel #applyBtn:not(:disabled) {
+    background-color: #5a5; /* Base enabled green */
+    color: white;
+    /* border: 1px solid #8c8; */ /* REMOVED BORDER */
+}
+
+#controlPanel #applyBtn:not(:disabled):hover {
+    background-color: #7c7; /* Brighter green on hover (overrides general hover) */
+}
+
+/* Active state for enabled Apply button (overrides general active) */
+#controlPanel #applyBtn:not(:disabled):active {
+    background-color: #8d8; /* Even brighter green */
+    transform: translateY(1px); 
 }
 
 /* Style for button group (in content) */
@@ -106,7 +143,6 @@ canvas {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 10px; /* Added margin above slider */
 }
 
 #controlPanel label {
@@ -133,3 +169,76 @@ canvas {
 
 /* Remove unused selectors if desired */
 /* #controlPanel #fpsValue, #controlPanel #stepsValue { ... }  */
+
+/* Style for rules display */
+.rules-display-container {
+    margin-top: 10px;
+}
+
+.rules-display-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#rulesDisplay {
+    width: 250px;
+    max-width: 250px;
+    overflow-x: auto;
+    background-color: #222;
+    border: 1px solid #444; /* Changed back to solid */
+    padding: 8px;
+    font-family: monospace;
+    font-size: 0.9em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 150px;
+    overflow-y: auto;
+    color: #ddd;
+    outline: none;
+}
+
+#rulesDisplay:focus {
+    border-color: #888; /* Highlight when focused */
+    background-color: #282828;
+}
+
+/* Make rule action buttons smaller */
+.rule-actions button {
+    font-size: 0.75em; /* Even smaller font */
+    padding: 3px 6px; /* Slightly smaller padding */
+}
+
+/* Specific style for rule action buttons if needed */
+.rule-actions {
+    margin-top: 10px;
+    justify-content: flex-start;
+    margin-bottom: 12px; /* Added space below these buttons */
+}
+
+/* Style for main action buttons group */
+.main-actions {
+    margin-top: 10px; /* Add space above main buttons */
+    justify-content: flex-start; /* Or space-around/center as preferred */
+}
+
+/* Container for generic inputs like Ant Count */
+.input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px; /* Space above */
+}
+
+.input-container label {
+    /* Inherits general label style */
+}
+
+.input-container input[type="number"] {
+    width: 60px; /* Adjust width */
+    padding: 3px 5px;
+    background-color: #222; /* Dark background */
+    color: white; /* Light text */
+    border: 1px solid #555; /* Subtle border */
+    border-radius: 3px;
+}

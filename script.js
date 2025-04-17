@@ -4,13 +4,15 @@ const ctx = canvas.getContext('2d');
 let width, height;
 const cellSize = 1; // Logical size of each cell (we zoom the canvas, not change this)
 let grid;
-let ant;
+let ants = []; // Array to hold multiple ants
+let gridCols = 0, gridRows = 0;
 let intervalId = null;
 let stepsPerTick; // Number of steps to run per interval tick
 let isRunning = true; // Simulation starts running
 
 // View transformation state
-let scale = 8; // Initial zoom level (Adjust as desired)
+const initialScale = 8; // Define initial scale
+let scale = initialScale; // Use constant for initial value
 let offsetX = 0;
 let offsetY = 0;
 let lastMouseX = 0;
@@ -32,9 +34,6 @@ const directions = [
     { dx: -1, dy: 0 }  // West
 ];
 
-let gridCols = 0; // Store grid dimensions globally for centering logic
-let gridRows = 0;
-
 let currentIntervalId = null;
 let currentIntervalDelay = 0;
 let currentStepsPerTick = 1;
@@ -46,11 +45,50 @@ const midSimSpeed = 60;      // Steps/Sec at slider midpoint (50)
 const maxSimSpeed = 100000;   // Max Target Steps/Sec at slider value 100 (Adjusted)
 const maxStepsPerLoopIteration = 100000; // Safety limit
 
+// Define neon cell colors (distinct from ant color 'red')
+const cellColors = [
+    '#000000', // 0: Black (Background)
+    '#FFFFFF', // 1: White (Replaced Cyan)
+    '#FF00FF', // 2: Magenta/Fuchsia
+    '#FFFF00', // 3: Yellow
+    '#00FF00'  // 4: Lime
+];
+const numColors = cellColors.length;
+
+// --- Turmite Rule Definition (Mutable) ---
+let rules = {}; // Initialize as empty
+
+// Function to generate random rules with variable states/colors
+function generateRandomRules(numStates, numColorsToUse) {
+    console.log(`Generating random rules for ${numStates} states and ${numColorsToUse} colors.`);
+    const newRules = {};
+    const moveOptions = ['L', 'R', 'N', 'U']; // Left, Right, None, U-turn
+
+    for (let s = 0; s < numStates; s++) {
+        newRules[s] = []; // Initialize state array
+        // Rules should be defined for *all* possible colors the grid *might* contain,
+        // even if we only write a subset initially.
+        // Let's stick to defining rules for the colors we intend to use (numColorsToUse)
+        for (let c = 0; c < numColorsToUse; c++) {
+            // Write one of the *used* colors
+            const writeColor = Math.floor(Math.random() * numColorsToUse);
+            const moveIndex = Math.floor(Math.random() * moveOptions.length);
+            const move = moveOptions[moveIndex];
+            // Go to one of the *used* states
+            const nextState = Math.floor(Math.random() * numStates);
+            newRules[s].push({ writeColor, move, nextState });
+        }
+    }
+    rules = newRules; // Update the global rules object
+}
+
 // --- State Variables ---
 let simulationTimeoutId = null;   // ID for simulation setTimeout loop
 let nextStepTime = 0;             // Target time for the next simulation step
 let renderRequestId = null;       // ID for render requestAnimationFrame
 let pauseTime = 0; // Added: Store time when paused
+let cellsToUpdate = new Set(); // Combined set for all redraw locations
+let needsFullRedraw = true; // Flag to trigger full grid redraw
 
 // --- Mapping Function ---
 function mapSliderToSpeed(sliderValue) {
@@ -77,23 +115,27 @@ function mapSliderToSpeed(sliderValue) {
 function resizeCanvas() {
     width = window.innerWidth;
     height = window.innerHeight;
+    if (!canvas) return;
     canvas.width = width;
     canvas.height = height;
 
-    // Recalculate offset to re-center the *existing* grid
-    if (gridCols > 0 && gridRows > 0) { // Use stored dimensions
-        const gridCenterX = gridCols / 2 * cellSize;
-        const gridCenterY = gridRows / 2 * cellSize;
-        offsetX = width / 2 - gridCenterX * scale;
-        offsetY = height / 2 - gridCenterY * scale;
-    } else {
-        // Fallback if called before grid initialized
-        offsetX = width / 2;
-        offsetY = height / 2;
-    }
+    // Recalculate offset to re-center the *logical origin (0,0)* 
+    // This keeps the view centered relative to where it was, approximately.
+    // If specific centering on grid is needed, more complex logic involving gridCols/Rows
+    // might be required, but let's keep it simple for now.
+    // offsetX = width / 2 - ... (removed complex centering)
+    // offsetY = height / 2 - ...
+    // Simply adjusting canvas size usually doesn't require recentering if panning/zooming is used.
+    // We *do* need to trigger a full redraw.
 
     setCanvasSmoothing(false);
-    requestAnimationFrame(draw); // Redraw needed after size/offset change
+    needsFullRedraw = true; // Flag for full redraw
+
+    // Request a draw. If running, renderLoop will handle it.
+    // If paused, this ensures the resized view is drawn.
+    if (!renderRequestId && !isRunning) {
+        requestAnimationFrame(draw);
+    }
 }
 
 function setCanvasSmoothing(enabled) {
@@ -105,93 +147,148 @@ function setCanvasSmoothing(enabled) {
 }
 
 function initGrid() {
-    // Calculate grid size based on current viewport and scale
-    // Use ceil to ensure the grid covers the whole viewport
-    gridCols = Math.ceil(width / scale); // Use current width
-    gridRows = Math.ceil(height / scale); // Use current height
+    // Calculate grid size based on current viewport and CURRENT scale
+    gridCols = Math.ceil(width / scale); // Use current scale
+    gridRows = Math.ceil(height / scale); // Use current scale
 
-    // Initialize cells to 1 (black background)
-    grid = Array(gridRows).fill(null).map(() => Array(gridCols).fill(1));
-    console.log(`Initialized grid: ${gridCols}x${gridRows} (state 1) based on scale ${scale}`);
+    if (gridCols <= 0 || gridRows <= 0) { 
+        console.warn("Cannot init grid with zero/negative dimensions, possibly invalid scale?", {width, height, scale});
+        gridCols = 1; gridRows = 1; // Set minimum size to prevent errors down the line
+    }
+    const defaultColorIndex = 0;
+    grid = Array(gridRows).fill(null).map(() => Array(gridCols).fill(defaultColorIndex));
+    console.log(`Initialized grid: ${gridCols}x${gridRows} with color ${defaultColorIndex} (${cellColors[defaultColorIndex]}) using scale ${scale}`);
 }
 
-function initAnt() {
-    // Place ant in the center of the *current* grid
-    ant = {
-        x: Math.floor(gridCols / 2),
-        y: Math.floor(gridRows / 2),
-        dir: 0 // Start facing North
-    };
+function initAnts() {
+    ants = []; // Clear existing ants
+    if (gridCols <= 0 || gridRows <= 0) { return; }
+
+    const antCountInput = document.getElementById('antCountInput');
+    const numAntsToCreate = antCountInput ? parseInt(antCountInput.value, 10) : 10;
+    const validatedAntCount = Math.max(1, Math.min(1024, numAntsToCreate || 1));
+
+    const centerX = Math.floor(gridCols / 2);
+    const centerY = Math.floor(gridRows / 2);
+    const clusterSize = Math.ceil(Math.sqrt(validatedAntCount));
+    const offset = Math.floor(clusterSize / 2);
+
+    for (let i = 0; i < validatedAntCount; i++) {
+        const gridX = centerX - offset + (i % clusterSize);
+        const gridY = centerY - offset + Math.floor(i / clusterSize);
+        const newAnt = {
+            x: gridX,
+            y: gridY,
+            dir: 0, // Start facing North
+            state: 0
+        };
+        ants.push(newAnt);
+    }
+    console.log(`Initialized ${ants.length} ants.`);
 }
 
 function resetCamera() {
-    console.log("Resetting camera view...");
-    scale = 8;
-    offsetX = 0;
-    offsetY = 0;
-    // No need to requestAnimationFrame(draw) here, render loop handles it
+    console.log("Resetting camera view to center initial grid...");
+    scale = initialScale; // Reset scale
+
+    // Calculate hypothetical grid dimensions based on initial scale
+    const tempGridCols = Math.ceil(width / scale); 
+    const tempGridRows = Math.ceil(height / scale);
+
+    // Calculate the center of this hypothetical grid (in logical coordinates)
+    const tempGridCenterX = tempGridCols / 2 * cellSize;
+    const tempGridCenterY = tempGridRows / 2 * cellSize;
+
+    // Calculate offset needed to place the grid center (scaled) at the viewport center
+    offsetX = width / 2 - tempGridCenterX * scale;
+    offsetY = height / 2 - tempGridCenterY * scale;
+
+    console.log(`Reset Camera: Scale=${scale}, OffsetX=${offsetX.toFixed(1)}, OffsetY=${offsetY.toFixed(1)} based on grid ${tempGridCols}x${tempGridRows}`);
+
+    setCanvasSmoothing(false);
+    cellsToUpdate.clear();
+    needsFullRedraw = true; // Trigger full redraw
+    // No draw call needed here, render loop will pick it up
 }
 
-function initSimulation() {
-    console.log("initSimulation called.");
+function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wasRunning = true) {
+    console.log(`initSimulation called. Randomize: ${randomize}, States: ${numStates}, Colors: ${numColorsToUse}, WasRunning: ${wasRunning}`);
+    // Stop loops regardless of previous state to ensure clean reset
     stopSimulationLoop();
     stopRenderLoop();
 
-    width = window.innerWidth;
-    height = window.innerHeight;
+    if (randomize) {
+        generateRandomRules(numStates, numColorsToUse);
+    } else if (Object.keys(rules).length === 0) {
+        console.log("Generating default Langton's Ant rules (2 colors, 1 state).");
+        numStates = 1; // Override defaults for Langton's
+        numColorsToUse = 2;
+        rules = {
+             0: [
+                 { writeColor: 1, move: 'R', nextState: 0 },
+                 { writeColor: 0, move: 'L', nextState: 0 }
+             ]
+         };
+     }
+
+    // Reset dimensions, grid, ants
+    width = window.innerWidth; height = window.innerHeight;
     if (!canvas) { console.error("Canvas missing!"); return; }
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width; canvas.height = height;
 
-    // Reset scale to initial before calculating grid/offset
-    scale = 8;
+    // --- Grid Reset Logic --- 
+    const originalScale = scale; // Store user's current scale
+    scale = initialScale; // Temporarily set to initial scale for grid creation
+    console.log(`Temporarily setting scale to ${initialScale} for grid init.`);
+    initGrid(); // Uses the temporary initialScale
+    initAnts(); // Ants are placed relative to this initial grid
+    scale = originalScale; // Restore user's original scale immediately after
+    console.log(`Restored scale to ${scale}.`);
+    // The current offsetX/offsetY are preserved, user's view doesn't jump.
 
-    initGrid();
-    initAnt();
-
-    if (gridCols > 0 && gridRows > 0) {
-        const gridCenterX = gridCols / 2 * cellSize;
-        const gridCenterY = gridRows / 2 * cellSize;
-        // Calculate and STORE the initial offsets
-        initialOffsetX = width / 2 - gridCenterX * scale;
-        initialOffsetY = height / 2 - gridCenterY * scale;
-        // Set current offset to initial
-        offsetX = initialOffsetX;
-        offsetY = initialOffsetY;
-    } else {
-        // Fallback
-        initialOffsetX = width / 2;
-        initialOffsetY = height / 2;
-        offsetX = initialOffsetX;
-        offsetY = initialOffsetY;
-    }
-
-    // Setup Controls - Remove FPS display references
+    // Setup Controls & Display Rules
     const simSpeedSlider = document.getElementById('simSpeedSlider');
     const simSpeedValueSpan = document.getElementById('simSpeedValue');
-    // actualFpsValueSpan = document.getElementById('actualFpsValue'); // Remove
+    const rulesDisplay = document.getElementById('rulesDisplay');
+    const applyBtn = document.getElementById('applyBtn');
 
-    if (!simSpeedSlider || !simSpeedValueSpan /* || !actualFpsValueSpan */) { console.error("UI elements missing!"); return; }
-
+    if (!simSpeedSlider || !simSpeedValueSpan || !rulesDisplay || !applyBtn) { return; }
     const initialSliderValue = parseInt(simSpeedSlider.value, 10);
     const initialSimSpeed = mapSliderToSpeed(initialSliderValue);
     simSpeedSlider.value = initialSliderValue;
     simSpeedValueSpan.textContent = Math.round(initialSimSpeed);
-    // frameTimes.length = 0; // Remove
-    // lastFpsUpdateTime = 0; // Remove
-    // if(actualFpsValueSpan) actualFpsValueSpan.textContent = '--'; // Remove
+
+    // Calculate metadata *just before* use
+    const numStatesInRules = Object.keys(rules).length;
+    const numColorsInRules = rules[0] ? rules[0].length : 0;
+
+    // Prepare rules display string with simplified metadata comments
+    let rulesString = `// States: ${numStatesInRules}\n`;
+    rulesString += `// Colors: ${numColorsInRules}\n`; // Just the count
+    rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn\n\n`;
+    try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { /* ... */ }
+    if (rulesDisplay) rulesDisplay.textContent = rulesString;
+    
+    // --- Ensure Apply button is disabled after any init ---
+    if (applyBtn) applyBtn.disabled = true;
 
     setCanvasSmoothing(false);
-    isRunning = true;
+    cellsToUpdate.clear();
+    needsFullRedraw = true; // Trigger full redraw for initial state
+
+    // Explicitly draw the initial full grid state
+    // No clear needed here as drawGrid draws all cells
+    drawGrid(); // This draws all cells, covering previous state
+
+    isRunning = wasRunning;
     updateButtonText();
+    pauseTime = 0;
 
-    // Make sure panel is not minimized on init
-    const panel = document.getElementById('controlPanel');
-    if (panel) panel.classList.remove('minimized');
-
-    pauseTime = 0; // Reset pause time on full init
-    startSimulationLoop();
-    startRenderLoop();
+    if (isRunning) {
+        startSimulationLoop(); // Schedules steps
+        startRenderLoop();     // Schedules calls to draw() -> drawUpdates
+    } 
+    // else: Paused state handled, initial draw already done.
 }
 
 function startSimulation() {
@@ -248,50 +345,50 @@ function updateButtonText() {
     if (btn) btn.innerHTML = isRunning ? '❚❚' : '▶';
 }
 
-// Core logic of a single ant step (inverted)
-function stepLogic() {
-    if (!grid || !ant || !grid.length || !grid[0].length) return;
+// Renamed and parameterized
+function stepSingleAntLogic(ant) {
+    if (!grid || !ant) return; // Check individual ant
+    if (gridCols <= 0 || gridRows <= 0) return;
 
-    const cols = grid[0].length;
-    const rows = grid.length;
+    ant.x = (ant.x + gridCols) % gridCols;
+    ant.y = (ant.y + gridRows) % gridRows;
 
-    // Wrap-around bounds check
-    ant.x = (ant.x + cols) % cols;
-    ant.y = (ant.y + rows) % rows;
-
-    // Check validity before grid access
-    if (ant.y < 0 || ant.y >= grid.length || ant.x < 0 || ant.x >= grid[0].length) {
-        console.error("Ant out of bounds despite wrap-around:", ant);
-        ant.x = Math.floor(cols / 2);
-        ant.y = Math.floor(rows / 2);
-        ant.dir = 0;
-        return;
-    }
+    if (!grid[ant.y] || ant.y < 0 || ant.y >= grid.length || ant.x < 0 || ant.x >= grid[ant.y].length) {
+         console.error("Ant out of bounds after wrap:", ant);
+         // Optionally reset the specific ant instead of returning?
+         // ant.x = Math.floor(gridCols / 2);
+         // ant.y = Math.floor(gridRows / 2);
+         return;
+     }
 
     const currentCellX = ant.x;
     const currentCellY = ant.y;
+    const currentCellColor = grid[currentCellY][currentCellX];
+    const currentState = ant.state;
 
-    try {
-        // Inverted Langton's Ant rule:
-        if (grid[currentCellY][currentCellX] === 1) { // Black square
-            ant.dir = (ant.dir + 1) % 4; // Turn right
-            grid[currentCellY][currentCellX] = 0; // Flip to white
-        } else { // White square (state 0)
-            ant.dir = (ant.dir - 1 + 4) % 4; // Turn left
-            grid[currentCellY][currentCellX] = 1; // Flip to black
-        }
-    } catch (e) {
-         console.error(`Error accessing grid at [${currentCellY}][${currentCellX}]. Ant:`, ant, "Grid dims:", grid.length, grid[0].length, e);
-         ant.x = Math.floor(cols / 2);
-         ant.y = Math.floor(rows / 2);
-         ant.dir = 0;
-         return;
+    let rule;
+    try { rule = rules[currentState][currentCellColor]; }
+    catch (e) { console.error(`Rule lookup failed! State: ${currentState}, Color: ${currentCellColor}`, e); isRunning = false; stopSimulationLoop(); stopRenderLoop(); updateButtonText(); return; }
+    if (!rule) { console.error(`No rule found for State: ${currentState}, Color: ${currentCellColor}`); isRunning = false; stopSimulationLoop(); stopRenderLoop(); updateButtonText(); return; }
+
+    // --- Record change only if color is different ---
+    if (rule.writeColor !== currentCellColor) {
+        grid[currentCellY][currentCellX] = rule.writeColor;
+        cellsToUpdate.add(`${currentCellX},${currentCellY}`); // Add coordinate string to Set
+    } // Else: No color change, no need to redraw cell
+
+    switch (rule.move) {
+        case 'R': ant.dir = (ant.dir + 1) % 4; break;
+        case 'L': ant.dir = (ant.dir - 1 + 4) % 4; break;
+        case 'U': ant.dir = (ant.dir + 2) % 4; break;
+        case 'N': default: break;
     }
 
-    // Move forward
-    const move = directions[ant.dir];
-    ant.x += move.dx;
-    ant.y += move.dy;
+    ant.state = rule.nextState;
+
+    const moveOffset = directions[ant.dir];
+    ant.x += moveOffset.dx;
+    ant.y += moveOffset.dy;
 }
 
 // Called by setInterval in Normal Mode
@@ -302,7 +399,7 @@ function runSimulationTick() {
          return;
      }
     for (let i = 0; i < currentStepsPerTick; i++) {
-        stepLogic();
+        stepSingleAntLogic(ants[i]);
     }
     requestAnimationFrame(draw); // Use rAF for drawing
 }
@@ -317,7 +414,7 @@ function runMaxSpeedLoop() {
 
     // Run the batch of steps
     for (let i = 0; i < currentStepsPerTick; i++) {
-        stepLogic();
+        stepSingleAntLogic(ants[i]);
     }
 
     // Draw the result of the batch
@@ -330,65 +427,146 @@ function runMaxSpeedLoop() {
 }
 
 function drawGrid() {
-    if (!grid || !grid.length || !grid[0].length) return;
+    if (!grid || !grid.length || !grid[0].length || !ctx) return;
+    // Remove save/transform/restore - calculate pixels directly
+    // ctx.save();
+    // ctx.translate(offsetX, offsetY);
+    // ctx.scale(scale, scale);
+    setCanvasSmoothing(false); // Still important
 
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
-    setCanvasSmoothing(false);
+    if (gridCols <= 0 || gridRows <= 0) { return; }
 
-    // Calculate visible grid bounds
-    const viewX1 = -offsetX / scale;
-    const viewY1 = -offsetY / scale;
-    const viewX2 = (width - offsetX) / scale;
-    const viewY2 = (height - offsetY) / scale;
-    const startCol = Math.max(0, Math.floor(viewX1 / cellSize));
-    const endCol = Math.min(grid[0].length, Math.ceil(viewX2 / cellSize));
-    const startRow = Math.max(0, Math.floor(viewY1 / cellSize));
-    const endRow = Math.min(grid.length, Math.ceil(viewY2 / cellSize));
+    // Calculate visible grid bounds (in grid cell coordinates - still useful)
+    const viewX1 = -offsetX / scale, viewY1 = -offsetY / scale;
+    const viewX2 = (width - offsetX) / scale, viewY2 = (height - offsetY) / scale;
+    const cellSize = 1;
+    // Add a small buffer to catch cells partially visible at edges
+    const buffer = 2;
+    const startCol = Math.max(0, Math.floor(viewX1 / cellSize) - buffer);
+    const endCol = Math.min(gridCols, Math.ceil(viewX2 / cellSize) + buffer);
+    const startRow = Math.max(0, Math.floor(viewY1 / cellSize) - buffer);
+    const endRow = Math.min(gridRows, Math.ceil(viewY2 / cellSize) + buffer);
 
-    // Draw white cells (state 0) using a single path
-    ctx.beginPath();
-    ctx.fillStyle = 'white'; // Path color is now white
-
+    // Draw ALL cells using calculated pixel coordinates
     for (let y = startRow; y < endRow; y++) {
-        if (y < 0 || y >= grid.length) continue;
+        if (y < 0 || y >= grid.length || !grid[y]) continue;
         for (let x = startCol; x < endCol; x++) {
              if (x < 0 || x >= grid[y].length) continue;
 
-            if (grid[y][x] === 0) { // Draw white cells (state 0)
-               ctx.rect(x * cellSize, y * cellSize, cellSize, cellSize);
-            }
+            const colorIndex = grid[y][x];
+            // Draw ALL valid color indices (including 0)
+            if (colorIndex >= 0 && colorIndex < cellColors.length) {
+                 ctx.fillStyle = cellColors[colorIndex];
+
+                 // Calculate final pixel coordinates and dimensions
+                 const px = Math.floor(offsetX + x * cellSize * scale);
+                 const py = Math.floor(offsetY + y * cellSize * scale);
+                 const pw = Math.ceil(cellSize * scale);
+                 const ph = Math.ceil(cellSize * scale);
+
+                 if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
+                    ctx.fillRect(px, py, pw, ph);
+                 }
+            } // else { console.warn(`Invalid color index at ${x},${y}: ${colorIndex}`); } // Optional: Warn on invalid index
         }
     }
-    ctx.fill();
 
-    // Draw Ant as a Circle (Red)
-    if (ant && ant.x >= startCol && ant.x < endCol && ant.y >= startRow && ant.y < endRow) {
-        ctx.fillStyle = 'red'; // Ant color changed to red
-        ctx.beginPath();
-        ctx.arc(
-            ant.x * cellSize + cellSize / 2,
-            ant.y * cellSize + cellSize / 2,
-            cellSize / 2.5,
-            0, 2 * Math.PI
-        );
-        ctx.fill();
+    // --- Draw Ants (Enable Smoothing) --- 
+    setCanvasSmoothing(true); // Enable AA for circles
+    for (let i = 0; i < ants.length; i++) {
+        const ant = ants[i];
+        if (!ant) continue;
+
+        // --- Check if ant is within logical grid bounds --- 
+        if (ant.x < 0 || ant.x >= gridCols || ant.y < 0 || ant.y >= gridRows) {
+            continue; // Don't draw if logically outside the grid
+        }
+
+        // Calculate ant's center pixel position
+        const antCenterX = offsetX + (ant.x + 0.5) * cellSize * scale;
+        const antCenterY = offsetY + (ant.y + 0.5) * cellSize * scale;
+        const antRadius = (cellSize / 2.5) * scale;
+
+        // Only draw if potentially visible on screen
+        if (antCenterX + antRadius > 0 && antCenterX - antRadius < width &&
+            antCenterY + antRadius > 0 && antCenterY - antRadius < height) {
+            ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(antCenterX, antCenterY, antRadius, 0, 2 * Math.PI); ctx.fill();
+        }
     }
-
-    ctx.restore();
+    setCanvasSmoothing(false); // Disable AA immediately after
+    // ctx.restore(); // No restore needed
 }
 
-// Main drawing function (add FPS calculation)
+// Function to draw updates efficiently
+function drawUpdates() {
+    if (!ctx) return;
+    setCanvasSmoothing(false);
+    const cellSize = 1;
+
+    // --- Draw all cells marked for update --- 
+    cellsToUpdate.forEach(coordString => {
+        const [xStr, yStr] = coordString.split(',');
+        const x = parseInt(xStr, 10);
+        const y = parseInt(yStr, 10);
+
+        // Ensure coordinate is valid and on grid before drawing
+        if (isNaN(x) || isNaN(y) || y < 0 || y >= grid.length || x < 0 || x >= grid[y].length) return;
+
+        const colorIndex = grid[y][x]; // Get the CURRENT color of the cell
+        if (colorIndex >= 0 && colorIndex < cellColors.length) {
+             ctx.fillStyle = cellColors[colorIndex];
+             const px = Math.floor(offsetX + x * cellSize * scale);
+             const py = Math.floor(offsetY + y * cellSize * scale);
+             const pw = Math.ceil(cellSize * scale);
+             const ph = Math.ceil(cellSize * scale);
+             if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
+                 ctx.fillRect(px, py, pw, ph);
+             }
+        }
+    });
+
+    // --- 3. Draw Ants in their NEW positions (Enable Smoothing) --- 
+    setCanvasSmoothing(true); // Enable AA for circles
+    for (let i = 0; i < ants.length; i++) {
+        const ant = ants[i];
+        if (!ant) continue;
+
+        // --- Check if ant is within logical grid bounds --- 
+        if (ant.x < 0 || ant.x >= gridCols || ant.y < 0 || ant.y >= gridRows) {
+            continue; // Don't draw if logically outside the grid
+        }
+
+        const antCenterX = offsetX + (ant.x + 0.5) * cellSize * scale;
+        const antCenterY = offsetY + (ant.y + 0.5) * cellSize * scale;
+        const antRadius = (cellSize / 2.5) * scale;
+        // Check visibility before drawing
+        if (antCenterX + antRadius > 0 && antCenterX - antRadius < width &&
+            antCenterY + antRadius > 0 && antCenterY - antRadius < height)
+        {
+            ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(antCenterX, antCenterY, antRadius, 0, 2 * Math.PI); ctx.fill();
+        }
+    }
+    setCanvasSmoothing(false); // Disable AA immediately after
+
+    // --- 4. Clear the update set for the next frame --- 
+    cellsToUpdate.clear();
+}
+
+// Main draw function: NO clearing, just call drawUpdates
 function draw() {
     if (!ctx) return;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
-    drawGrid();
+
+    if (needsFullRedraw) {
+        // console.log("Performing full redraw"); // Optional debug log
+        // Clear background (important for full redraw)
+        ctx.fillStyle = '#555555'; 
+        ctx.fillRect(0, 0, width, height);
+        drawGrid(); // Draw the entire grid
+        needsFullRedraw = false; // Reset flag after drawing
+    } else {
+        // console.log("Performing partial update"); // Optional debug log
+        drawUpdates(); // Draw only changes
+    }
 }
 
 function handleZoom(event) {
@@ -416,8 +594,10 @@ function handleZoom(event) {
     offsetY = mouseY - worldY * newScale;
     scale = newScale;
 
-    setCanvasSmoothing(false); // Ensure pixelation is off after zoom
-    requestAnimationFrame(draw); // Redraw with new transform
+    setCanvasSmoothing(false);
+    needsFullRedraw = true; // View changed, need full redraw
+    // Request animation frame, draw() will handle the rest
+    if (!renderRequestId && !isRunning) requestAnimationFrame(draw);
 }
 
 function handleMouseDown(event) {
@@ -447,7 +627,9 @@ function handleMouseMove(event) {
     lastMouseX = mouseX;
     lastMouseY = mouseY;
 
-    requestAnimationFrame(draw); // Redraw during panning
+    needsFullRedraw = true; // View changed, need full redraw
+    // Request animation frame, draw() will handle the rest
+    if (!renderRequestId && !isRunning) requestAnimationFrame(draw);
 }
 
 function handleMouseLeave(event) {
@@ -456,6 +638,26 @@ function handleMouseLeave(event) {
         canvas.style.cursor = 'grab';
     }
 }
+
+// Global Hotkey Listener
+window.addEventListener('keydown', (event) => {
+    // Ignore keys if user is typing in the rules editor
+    if (event.target === document.getElementById('rulesDisplay')) {
+        return;
+    }
+
+    // Check for Space bar (Start/Stop)
+    if (event.code === 'Space') {
+        event.preventDefault(); // Prevent default space bar scroll
+        const btn = document.getElementById('startStopBtn');
+        if (btn) btn.click(); // Simulate click
+    }
+    // Check for 'R' key (Randomize)
+    else if (event.key === 'r' || event.key === 'R') {
+        const btn = document.getElementById('randomizeBtn');
+        if (btn) btn.click(); // Simulate click
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log("DOMContentLoaded event fired.");
@@ -478,9 +680,13 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log("maximizeBtn:", maximizeBtn);
     const controlPanel = document.getElementById('controlPanel');
     console.log("controlPanel:", controlPanel);
+    const rulesDisplay = document.getElementById('rulesDisplay');
+    const applyBtn = document.getElementById('applyBtn');
+    const randomizeBtn = document.getElementById('randomizeBtn');
+    const antCountInput = document.getElementById('antCountInput'); // Get ant count input
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -491,6 +697,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!minimizeBtn) console.error("- minimizeBtn is null");
         if (!maximizeBtn) console.error("- maximizeBtn is null");
         if (!controlPanel) console.error("- controlPanel is null");
+        if (!rulesDisplay) console.error("- rulesDisplay is null");
+        if (!applyBtn) console.error("- applyBtn is null");
+        if (!randomizeBtn) console.error("- randomizeBtn is null");
+        if (!antCountInput) console.error("- antCountInput is null");
         return; // Stop execution
     }
 
@@ -513,9 +723,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     resetBtn.addEventListener('click', () => {
-        console.log("Resetting simulation...");
-        isRunning = true; // Ensure it's running after reset
-        initSimulation(); // Reset state and restart simulation
+        console.log("Resetting simulation state (keeping current rules)...");
+        const currentState = isRunning; // Check state *before* calling init
+        // Call init without randomize, state/color counts (uses current rules)
+        initSimulation(false, undefined, undefined, currentState);
+        // Discard pending changes explicitly by disabling Apply button
+        if (applyBtn) applyBtn.disabled = true;
+        // Optionally reset ant count input to current sim state? No, let it keep user input.
+        // Optionally reset rules text to current sim state? No, let it keep user input.
     });
 
     // Reset View Listener
@@ -540,6 +755,71 @@ document.addEventListener('DOMContentLoaded', () => {
         // nextStepTime = Math.min(nextStepTime, performance.now() + 100);
     });
 
+    // Ant Count Input Listener
+    if (antCountInput) {
+        antCountInput.addEventListener('input', () => {
+            // Clamp value immediately in the UI if user types outside range
+            const currentVal = parseInt(antCountInput.value, 10);
+            const minVal = parseInt(antCountInput.min, 10);
+            const maxVal = 1024; // Use literal max value for clamping check
+            if (!isNaN(currentVal)) {
+                 if (currentVal < minVal) antCountInput.value = minVal;
+                 else if (currentVal > maxVal) antCountInput.value = maxVal;
+            }
+            if (applyBtn) applyBtn.disabled = false;
+        });
+    }
+
+    // Rules Display Listener (Input event)
+    rulesDisplay.addEventListener('input', () => {
+        if (applyBtn) applyBtn.disabled = false;
+    });
+
+    // Apply Button Listener - Applies changes AND resets
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            console.log("Applying changes (rules and ant count) and resetting...");
+            let rulesChanged = false;
+            if (rulesDisplay) {
+                try {
+                    let rulesText = rulesDisplay.textContent;
+                    const rulesWithoutComments = rulesText.replace(/^\s*\/\/.*$/gm, '').trim();
+                    const parsedRules = JSON.parse(rulesWithoutComments);
+                    if (typeof parsedRules !== 'object' || parsedRules === null) throw new Error("Invalid rules object.");
+                    // Simple check: Has the stringified version changed? (Not perfect, but decent)
+                    if (JSON.stringify(rules) !== JSON.stringify(parsedRules)) {
+                        rules = parsedRules;
+                        rulesChanged = true;
+                        console.log("Rules updated.");
+                    }
+                } catch (e) {
+                    console.error("Error parsing rules JSON:", e);
+                    alert(`Error parsing rules: ${e.message}\nPlease correct the rules definition.`);
+                    return; // Stop if rules are invalid
+                }
+            }
+
+            // Reset simulation using potentially updated rules and current ant count input
+            applyBtn.disabled = true; // Disable button after initiating apply/reset
+            const currentState = isRunning;
+            console.log("Resetting simulation to apply changes.");
+            initSimulation(false, undefined, undefined, currentState); // initSimulation reads ant count and uses current global 'rules'
+        });
+    }
+
+    // Randomize Listener - Creates new rules AND resets
+    if (randomizeBtn) {
+        randomizeBtn.addEventListener('click', () => {
+            console.log("Randomizing rules and resetting simulation...");
+            const currentState = isRunning;
+            const randomStates = Math.floor(Math.random() * 8) + 1;
+            const randomColors = Math.floor(Math.random() * (numColors - 1)) + 2;
+            // Generate rules THEN reset simulation (initSimulation uses new rules and current ant count)
+            initSimulation(true, randomStates, randomColors, currentState);
+            if (applyBtn) applyBtn.disabled = true;
+        });
+    }
+
     // --- Pan and Zoom Listeners ---
     if (canvas) { // Check if canvas exists before adding listeners
         canvas.addEventListener('wheel', handleZoom);
@@ -552,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Canvas element not found for Pan/Zoom listeners!");
     }
 
-    initSimulation(); // Initial setup and start
+    initSimulation(false, undefined, undefined, true); // Initial load always starts running
 });
 
 // Global listeners like resize can often stay global
@@ -561,40 +841,45 @@ window.addEventListener('resize', resizeCanvas);
 // --- Simulation Loop (Corrected Logic) ---
 function simulationLoop() {
     if (!isRunning) {
-        simulationTimeoutId = null; // Ensure cleared
-        return; // Stop if paused
+        simulationTimeoutId = null; return;
     }
-
     const now = performance.now();
-    let stepsExecuted = 0;
-
-    // Determine target speed using the mapping function
+    let totalStepsExecutedThisLoop = 0;
     const slider = document.getElementById('simSpeedSlider');
-    const sliderValue = slider ? parseInt(slider.value, 10) : 50; // Default to midpoint if no slider
-    const targetSpeed = mapSliderToSpeed(sliderValue);
-    const stepDuration = (targetSpeed > 0) ? 1000 / targetSpeed : Infinity;
+    const targetSpeed = slider ? parseInt(slider.value, 10) : 50;
+    const mappedSpeed = mapSliderToSpeed(targetSpeed);
+    const stepDuration = (mappedSpeed > 0) ? 1000 / mappedSpeed : Infinity;
 
-    // Catch up on steps if needed (runs 0 times if ahead of schedule)
-    while (now >= nextStepTime && stepsExecuted < maxStepsPerLoopIteration) {
-        stepLogic();
+    // Determine how many full simulation ticks (all ants move once) should have passed
+    while (now >= nextStepTime && totalStepsExecutedThisLoop < maxStepsPerLoopIteration) {
+        for (let i = 0; i < ants.length; i++) {
+            const ant = ants[i];
+            if (!ant) continue;
+
+            // 1. Record current location before stepping
+            const prevX = ant.x;
+            const prevY = ant.y;
+            cellsToUpdate.add(`${prevX},${prevY}`);
+
+            // 2. Execute step for this ant
+            stepSingleAntLogic(ant);
+
+            // 3. Record new location after stepping
+            cellsToUpdate.add(`${ant.x},${ant.y}`);
+        }
+
         nextStepTime += stepDuration;
-        stepsExecuted++;
-        // Safety break if stepDuration is invalid
-        if (stepDuration <= 0 || !isFinite(stepDuration)) {
-             console.error("Step duration is invalid, breaking loop.", stepDuration);
-             nextStepTime = performance.now() + 1000; // Force a 1s pause
-             break;
-         }
+        totalStepsExecutedThisLoop += ants.length;
+        if (stepDuration <= 0 || !isFinite(stepDuration)) { /* ... */ break; }
     }
 
-    // Handle hitting the step limit
-    if (stepsExecuted >= maxStepsPerLoopIteration) {
-        console.warn(`Max steps (${maxStepsPerLoopIteration}) reached in one loop iteration.`);
+    if (totalStepsExecutedThisLoop >= maxStepsPerLoopIteration) {
+        // console.warn(`Max steps (${maxStepsPerLoopIteration}) reached.`); // Removed warning
         // Reset nextStepTime based on current time to avoid huge future jumps
+        // This allows the simulation to recover if it falls far behind.
         nextStepTime = performance.now() + stepDuration;
     }
 
-    // Always calculate the delay to the *next* scheduled step time based on the *current* time
     const timeToNext = Math.max(0, nextStepTime - performance.now());
     simulationTimeoutId = setTimeout(simulationLoop, timeToNext);
 }
@@ -633,13 +918,12 @@ function stopSimulationLoop() {
 
 // --- Render Loop ---
 function renderLoop() {
-    // isRunning check prevents drawing when paused
     if (!isRunning) {
         renderRequestId = null; // Ensure ID is cleared
         return; // Don't draw or request next frame
     }
-    draw(); // Perform drawing
-    renderRequestId = requestAnimationFrame(renderLoop); // Request next frame
+    draw(); // Calls draw -> drawChangedCellsAndAnts
+    renderRequestId = requestAnimationFrame(renderLoop);
 }
 
 function startRenderLoop() {

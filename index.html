@@ -11,19 +11,30 @@
 
     <div id="controlPanel">
         <div class="panel-header">
-            <button id="minimizeBtn" title="Minimize Panel">&#x2212;</button>
-            <button id="maximizeBtn" title="Maximize Panel">&#x25A1;</button>
+            <button id="minimizeBtn" title="Minimize Panel">−</button>
+            <button id="maximizeBtn" title="Maximize Panel">□</button>
         </div>
         <div class="panel-content">
-            <div class="button-group">
-                <button id="startStopBtn" title="Pause/Play">❚❚</button>
-                <button id="resetBtn" title="Reset Simulation">&#x21BA;</button>
-                <button id="resetViewBtn" title="Reset View">&#x26F6;</button>
+            <div class="rules-display-container">
+                 <pre id="rulesDisplay" contenteditable="true" spellcheck="false"></pre>
+            </div>
+            <div class="input-container ant-count-container">
+                <label for="antCountInput">Ants:</label>
+                <input type="number" id="antCountInput" min="1" max="1024" value="10" title="Number of ants (1-1024)">
+            </div>
+            <div class="button-group rule-actions">
+                <button id="randomizeBtn" title="Randomize Rules (R)">Randomize</button>
+                <button id="applyBtn" title="Apply Ruleset Changes" disabled>Apply Changes</button>
             </div>
             <div class="slider-container">
                 <label for="simSpeedSlider">Steps/Sec:</label>
                 <input type="range" id="simSpeedSlider" min="1" max="100" value="50" title="Target simulation steps per second (50=60, >50 exponential)">
                 <span id="simSpeedValue">60</span>
+            </div>
+            <div class="button-group main-actions">
+                <button id="startStopBtn" title="Pause/Play (Space)">❚❚</button>
+                <button id="resetBtn" title="Reset Simulation">↺</button>
+                <button id="resetViewBtn" title="Reset View">⛶</button>
             </div>
         </div>
     </div>
