@@ -172,16 +172,41 @@ canvas {
 
 /* Style for rules display */
 .rules-display-container {
-    margin-top: 10px;
+    /* Removed margin-top: 10px; rely on gap/other margins */
+    /* Container is block by default, contains label+icon and pre */
+}
+
+.rule-label-container {
+    display: flex;
+    align-items: center;
+    gap: 5px; /* Space between label and icon */
+    margin-bottom: 3px; /* Space before pre tag */
+}
+
+#editRuleBtn {
+    background: none;
+    border: none;
+    color: #ccc;
+    padding: 0; /* Remove padding */
+    margin: 0; /* Remove margin */
+    font-size: 1em; /* Slightly smaller icon */
+    cursor: pointer;
+    line-height: 1; /* Keep tight line height */
+    vertical-align: middle; /* Align with label text better */
+}
+#editRuleBtn:hover {
+    color: white;
 }
 
 .rules-display-container label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
+    /* Styles from previous step */
+    margin-right: 0; /* Remove right margin, gap handles spacing */
+    /* ... */
 }
 
 #rulesDisplay {
+    /* Add hidden style initially if not using class */
+    /* display: none; */ 
     width: 250px;
     max-width: 250px;
     overflow-x: auto;
@@ -218,8 +243,22 @@ canvas {
 
 /* Style for main action buttons group */
 .main-actions {
-    margin-top: 10px; /* Add space above main buttons */
-    justify-content: flex-start; /* Or space-around/center as preferred */
+    margin-top: 10px;
+    justify-content: flex-start;
+}
+
+/* Panel Title Style */
+.panel-title {
+    text-align: center;
+    margin: 0 0 10px 0; /* Remove top margin, add bottom */
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #eee;
+}
+
+/* General Hidden Utility */
+.hidden {
+    display: none !important;
 }
 
 /* Container for generic inputs like Ant Count */
@@ -227,7 +266,15 @@ canvas {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 10px; /* Space above */
+    margin-top: 8px; /* Slightly reduced default top margin */
+}
+
+/* Specific margin/alignment for checkbox container */
+.individual-rules-container {
+    margin-top: 10px; /* More space above */
+    margin-bottom: 3px; /* Less space below */
+    justify-content: flex-start; /* Align left */
+    gap: 5px; /* Smaller gap for checkbox */
 }
 
 .input-container label {
@@ -241,4 +288,20 @@ canvas {
     color: white; /* Light text */
     border: 1px solid #555; /* Subtle border */
     border-radius: 3px;
+}
+
+.input-container select {
+    padding: 3px 5px;
+    background-color: #222; /* Dark background */
+    color: white; /* Light text */
+    border: 1px solid #555; /* Subtle border */
+    border-radius: 3px;
+    flex-grow: 1; /* Allow select to fill space if needed */
+}
+
+/* Style for the HR separator */
+.control-separator {
+    border: none;
+    border-top: 1px solid #555; /* Match other borders */
+    margin: 12px 0; /* Space above and below */
 }
