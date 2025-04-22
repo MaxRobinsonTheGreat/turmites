@@ -45,7 +45,7 @@ const midSimSpeed = 60;      // Steps/Sec at slider midpoint (50)
 const maxSimSpeed = 100000;   // Max Target Steps/Sec at slider value 100 (Adjusted)
 const maxStepsPerLoopIteration = 100000; // Safety limit
 
-// Define neon cell colors (up to 10)
+// Define neon cell colors (up to 12)
 const cellColors = [
     '#000000', // 0: Black (Background)
     '#FFFFFF', // 1: White 
@@ -53,12 +53,14 @@ const cellColors = [
     '#FFFF00', // 3: Yellow
     '#00FF00', // 4: Lime
     '#00FFFF', // 5: Cyan/Aqua
-    '#FF0000', // 6: Red (Different from Ant Red if ant is changed)
+    '#FF0000', // 6: Red 
     '#FFA500', // 7: Orange
     '#0000FF', // 8: Blue
-    '#FF69B4'  // 9: Hot Pink
+    '#FF69B4', // 9: Hot Pink
+    '#DA70D6', // 10: Orchid
+    '#8A2BE2'  // 11: BlueViolet
 ];
-const maxPossibleColors = cellColors.length; // Store the max count
+const maxPossibleColors = cellColors.length; // Should now be 12
 // const numColors = cellColors.length; // Removed, numColors used is variable now
 
 // --- Turmite Rule Definition (Mutable) ---
@@ -66,9 +68,8 @@ let rules = {}; // Initialize as empty
 
 // Function to generate random rules with variable states/colors
 function generateRandomRules(numStates, numColorsToUse) {
-    console.log(`Generating random rules for ${numStates} states and ${numColorsToUse} colors.`);
     const newRules = {};
-    const moveOptions = ['L', 'R', 'N', 'U'];
+    const moveOptions = ['L', 'R', 'N', 'U', 'S'];
 
     for (let s = 0; s < numStates; s++) {
         newRules[s] = [];
@@ -87,7 +88,7 @@ function generateRandomRules(numStates, numColorsToUse) {
 // Helper function to generate rules for a single ant
 function generateRandomRulesForAnt(numStates, numColorsToUse) {
     const antSpecificRules = {};
-    const moveOptions = ['L', 'R', 'N', 'U'];
+    const moveOptions = ['L', 'R', 'N', 'U', 'S'];
     for (let s = 0; s < numStates; s++) {
         antSpecificRules[s] = [];
         for (let c = 0; c < numColorsToUse; c++) {
@@ -221,7 +222,7 @@ function updateIndividualRulesVisibility(antCount, rulesDisplayContainer, indivi
                  const numColorsInRules = sourceRules[0] ? sourceRules[0].length : 0;
                  let rulesString = `// States: ${numStatesInRules}\n`;
                  rulesString += `// Colors: ${numColorsInRules}\n`; 
-                 rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn\n\n`;
+                 rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
                  try { rulesString += JSON.stringify(sourceRules, null, 2); } catch (e) { rulesString = "Error stringifying rules.";}
                  rulesDisplay.textContent = rulesString;
                  console.log("Updated main rule display text as container became visible.");
@@ -230,21 +231,22 @@ function updateIndividualRulesVisibility(antCount, rulesDisplayContainer, indivi
     }
 }
 
-function initAnts() {
+function initAnts(preservedIndividualRules = null) {
     ants = [];
-    cellsToUpdate.clear(); 
+    cellsToUpdate.clear();
     if (gridCols <= 0 || gridRows <= 0) { return; }
 
     // Get controls needed for ant setup
     const antCountInput = document.getElementById('antCountInput');
     const startPositionSelect = document.getElementById('startPositionSelect');
-    const individualRulesCheck = document.getElementById('individualRulesCheck'); // Read state here
-    
+    const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
+    const individualRulesCheck = document.getElementById('individualRulesCheck');
+
     const startMode = startPositionSelect ? startPositionSelect.value : 'center';
+    const startDirMode = startDirectionSelect ? startDirectionSelect.value : '0'; // Read direction mode
     const numAntsToCreate = antCountInput ? parseInt(antCountInput.value, 10) : 1;
     const validatedAntCount = Math.max(1, Math.min(1024, numAntsToCreate || 1));
-    // Determine if individual rules should be used based on checkbox state *and* count
-    const useIndividualRules = individualRulesCheck ? individualRulesCheck.checked && validatedAntCount > 1 : false; 
+    const useIndividualRules = individualRulesCheck ? individualRulesCheck.checked && validatedAntCount > 1 : false;
 
     // Read max states/colors for potential individual rule generation
     const possibleStatesInput = document.getElementById('possibleStatesInput');
@@ -258,12 +260,12 @@ function initAnts() {
     const centerY = Math.floor(gridRows / 2);
     const occupied = new Set(); // To track occupied spots for random/grid modes
 
-    console.log(`Initializing ${validatedAntCount} ants. Mode: ${startMode}, Use Individual Rules: ${useIndividualRules}`);
+    console.log(`Initializing ${validatedAntCount} ants. Mode: ${startMode}, Dir: ${startDirMode}, Indiv Rules: ${useIndividualRules}, Preserved Rules: ${preservedIndividualRules ? preservedIndividualRules.length : 'None'}`);
 
     for (let i = 0; i < validatedAntCount; i++) {
         let gridX, gridY;
-        let attempts = 0; 
-        const MAX_ATTEMPTS = 2000; 
+        let attempts = 0;
+        const MAX_ATTEMPTS = 2000;
         switch (startMode) {
             case 'random':
                 do {
@@ -286,26 +288,26 @@ function initAnts() {
                 cols = Math.min(cols, gridCols);
                 rows = Math.min(rows, gridRows);
                 // Recalculate if adjustment makes it too small
-                if (cols * rows < validatedAntCount) { 
+                if (cols * rows < validatedAntCount) {
                     rows = Math.ceil(validatedAntCount / cols);
                     if (cols * rows < validatedAntCount) { // If still too small, adjust cols
                          cols = Math.ceil(validatedAntCount / rows);
                     }
                 }
-                
+
                 const spacingX = gridCols / (cols + 1);
                 const spacingY = gridRows / (rows + 1);
-                
+
                 const colIndex = i % cols;
                 const rowIndex = Math.floor(i / cols);
-                
+
                 gridX = Math.floor(spacingX * (colIndex + 1));
                 gridY = Math.floor(spacingY * (rowIndex + 1));
-                
+
                 // Ensure it's within bounds (spacing calculation might push edge cases)
                 gridX = Math.max(0, Math.min(gridCols - 1, gridX));
                 gridY = Math.max(0, Math.min(gridRows - 1, gridY));
-                
+
                 // Check for overlap (unlikely with this grid logic, but possible)
                 let originalGridX = gridX;
                 let originalGridY = gridY;
@@ -313,6 +315,28 @@ function initAnts() {
                     gridX = (originalGridX + attempts) % gridCols;
                     gridY = originalGridY; // Simple fallback
                     attempts++;
+                }
+                break;
+
+            case 'row':
+                // Calculate width of the first row
+                const rowWidth = Math.min(validatedAntCount, gridCols);
+                // Calculate number of rows needed
+                const numRows = Math.ceil(validatedAntCount / gridCols);
+
+                // Calculate starting position for the top-left of the block
+                const startX = Math.floor(centerX - rowWidth / 2);
+                const startY = Math.floor(centerY - numRows / 2);
+
+                const colOffset = i % gridCols; // Column within the current row
+                const rowOffset = Math.floor(i / gridCols); // Which row we are on
+
+                gridX = startX + colOffset;
+                gridY = startY + rowOffset;
+
+                // Check for overlap (extremely unlikely but possible if grid is tiny)
+                if (occupied.has(`${gridX},${gridY}`)) {
+                    console.warn(`Row placement overlap detected at ${gridX},${gridY}. Placing anyway.`);
                 }
                 break;
 
@@ -327,20 +351,46 @@ function initAnts() {
                 gridY = Math.max(0, Math.min(gridRows - 1, gridY));
                 break;
         }
-        
+
+        // Ensure within bounds AFTER calculating specific position
+        gridX = Math.max(0, Math.min(gridCols - 1, gridX || 0)); // Use || 0 as fallback if undefined
+        gridY = Math.max(0, Math.min(gridRows - 1, gridY || 0));
+
         occupied.add(`${gridX},${gridY}`); // Mark as occupied
-        
+
         let individualRule = null;
-        // Generate NEW individual rules ONLY if mode is active
-        if (useIndividualRules) { 
-            const antStates = Math.floor(Math.random() * validatedMaxStates) + 1;
-            const antColors = Math.floor(Math.random() * (validatedMaxColors - 1)) + 2; 
-            individualRule = generateRandomRulesForAnt(antStates, antColors);
+        // Check if using individual rules
+        if (useIndividualRules) {
+            // Prioritize using preserved rules if available for this index
+            if (preservedIndividualRules && i < preservedIndividualRules.length && preservedIndividualRules[i]) {
+                individualRule = preservedIndividualRules[i];
+                // console.log(`Ant ${i}: Using preserved rule.`); // Optional log
+            } else {
+                // Otherwise, generate new random rules for this ant
+                // console.log(`Ant ${i}: No preserved rule found or index out of bounds, generating new rule.`); // Optional log
+                const antStates = Math.floor(Math.random() * validatedMaxStates) + 1;
+                const antColors = Math.floor(Math.random() * (validatedMaxColors - 1)) + 2;
+                individualRule = generateRandomRulesForAnt(antStates, antColors);
+            }
+        }
+        // If not using individual rules, individualRule remains null, and the ant will use global rules
+
+        // Determine initial direction
+        let initialDir = 0; // Default North/Up
+        if (startDirMode === 'random') {
+            initialDir = Math.floor(Math.random() * 4);
+        } else {
+            const dirValue = parseInt(startDirMode, 10);
+            if (!isNaN(dirValue) && dirValue >= 0 && dirValue < 4) {
+                initialDir = dirValue;
+            }
         }
 
         const newAnt = {
-            x: gridX, y: gridY, dir: 0, state: 0,
-            individualRule: individualRule // Assign generated or null
+            x: gridX, y: gridY,
+            dir: initialDir,
+            state: 0,
+            individualRule: individualRule // Assign preserved or newly generated rule
         };
         ants.push(newAnt);
         cellsToUpdate.add(`${gridX},${gridY}`);
@@ -382,6 +432,14 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     const antCountInput = document.getElementById('antCountInput');
     const antCount = antCountInput ? parseInt(antCountInput.value, 10) : 1;
 
+    // --- Preserve individual rules if resetting without randomizing ---
+    let preservedIndividualRules = null;
+    if (!randomize && useIndividual && antCount > 0 && ants.length > 0) {
+        preservedIndividualRules = ants.map(ant => ant?.individualRule).filter(rule => rule); // Get existing rules
+        console.log(`Preserving ${preservedIndividualRules.length} individual rules.`);
+    }
+    // --- End preservation ---
+
     if (randomize) {
         // Generate new global rules, even if individual is checked (provides a base)
         generateRandomRules(numStates, numColorsToUse);
@@ -409,7 +467,8 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     scale = initialScale; // Temporarily set to initial scale for grid creation
     console.log(`Temporarily setting scale to ${initialScale} for grid init.`);
     initGrid(); // Uses the temporary initialScale
-    initAnts(); // Ants are placed relative to this initial grid
+    // Pass preserved rules to initAnts
+    initAnts(preservedIndividualRules); // Ants are placed relative to this initial grid
     scale = originalScale; // Restore user's original scale immediately after
     console.log(`Restored scale to ${scale}.`);
     // The current offsetX/offsetY are preserved, user's view doesn't jump.
@@ -433,7 +492,7 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     // Prepare rules display string with simplified metadata comments
     let rulesString = `// States: ${numStatesInRules}\n`;
     rulesString += `// Colors: ${numColorsInRules}\n`; // Just the count
-    rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn\n\n`;
+    rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
     try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { /* ... */ }
     if (rulesDisplay) rulesDisplay.textContent = rulesString;
     
@@ -552,39 +611,53 @@ function stepSingleAntLogic(ant) {
     const currentCellColor = grid[currentCellY][currentCellX];
     const currentState = ant.state;
 
-    // --- Use individual rule if available, otherwise global rule --- 
     const ruleSetToUse = ant.individualRule || rules;
-    
     let rule;
-    if (ruleSetToUse[currentState] && ruleSetToUse[currentState][currentCellColor]) {
-         rule = ruleSetToUse[currentState][currentCellColor];
-    } else {
-         // Rule missing for current color, try using the rule for color 0 instead
-         if (ruleSetToUse[currentState] && ruleSetToUse[currentState][0]) {
-             rule = ruleSetToUse[currentState][0];
-         } else {
-            rule = { writeColor: currentCellColor, move: 'N', nextState: 0 }; // Safe fallback
-         }
+    try { 
+        if (ruleSetToUse[currentState] && ruleSetToUse[currentState][currentCellColor]) {
+             rule = ruleSetToUse[currentState][currentCellColor];
+        } else { 
+             if (ruleSetToUse[currentState] && ruleSetToUse[currentState][0]) {
+                 rule = ruleSetToUse[currentState][0];
+             } else {
+                rule = { writeColor: currentCellColor, move: 'N', nextState: 0 };
+             }
+        }
+    } catch (e) { 
+        console.error("Error in stepSingleAntLogic:", e);
+        return; 
     }
-
+    
     // --- Record change only if color is different ---
     if (rule.writeColor !== currentCellColor) {
         grid[currentCellY][currentCellX] = rule.writeColor;
-        cellsToUpdate.add(`${currentCellX},${currentCellY}`); // Add coordinate string to Set
-    } // Else: No color change, no need to redraw cell
+        cellsToUpdate.add(`${currentCellX},${currentCellY}`); 
+    } 
 
-    switch (rule.move) {
+    let dx = 0, dy = 0;
+    // --- Determine Direction Change --- 
+    switch (rule.move) { // Use rule.move directly again
         case 'R': ant.dir = (ant.dir + 1) % 4; break;
         case 'L': ant.dir = (ant.dir - 1 + 4) % 4; break;
         case 'U': ant.dir = (ant.dir + 2) % 4; break;
-        case 'N': default: break;
+        case 'S': break; 
+        case 'N': default: break; 
     }
-
+    // --- Determine Movement Delta (only if not 'S') ---
+    if (rule.move !== 'S') { // Use rule.move directly again
+        const moveOffset = directions[ant.dir];
+        if (moveOffset) { 
+            dx = moveOffset.dx;
+            dy = moveOffset.dy;
+        } else {
+             console.error(`Invalid ant direction: ${ant.dir}`);
+        }
+    }
+    // Update state
     ant.state = rule.nextState;
-
-    const moveOffset = directions[ant.dir];
-    ant.x += moveOffset.dx;
-    ant.y += moveOffset.dy;
+    // Apply movement
+    ant.x += dx;
+    ant.y += dy;
 }
 
 // Called by setInterval in Normal Mode
@@ -621,6 +694,36 @@ function runMaxSpeedLoop() {
     // Schedule the next batch immediately
     timeoutId = setTimeout(runMaxSpeedLoop, 0);
 }
+
+// --- Drawing ---
+// ... (drawGrid cell drawing loop)
+
+// Helper to draw ant shape
+function drawAntShape(ant) {
+     // Check if ant is within logical grid bounds
+     if (ant.x < 0 || ant.x >= gridCols || ant.y < 0 || ant.y >= gridRows) return;
+
+     // Calculate pixel positions
+     const cellSize = 1;
+     const antCenterX = offsetX + (ant.x + 0.5) * cellSize * scale;
+     const antCenterY = offsetY + (ant.y + 0.5) * cellSize * scale;
+     const antSize = (cellSize * scale) * 0.8; 
+     const antRadius = antSize / 2.5; 
+
+     // Visibility check
+     if (!(antCenterX + antSize > 0 && antCenterX - antSize < width &&
+           antCenterY + antSize > 0 && antCenterY - antSize < height)) {
+         return;
+     }
+
+     ctx.fillStyle = 'red';
+     ctx.beginPath();
+
+     // --- Always draw a circle --- 
+     ctx.arc(antCenterX, antCenterY, antRadius, 0, 2 * Math.PI);
+     
+     ctx.fill();
+ }
 
 function drawGrid() {
     if (!grid || !grid.length || !grid[0].length || !ctx) return;
@@ -668,26 +771,9 @@ function drawGrid() {
     }
 
     // --- Draw Ants (Enable Smoothing) --- 
-    setCanvasSmoothing(true); // Enable AA for circles
+    setCanvasSmoothing(true); // Enable AA for shapes
     for (let i = 0; i < ants.length; i++) {
-        const ant = ants[i];
-        if (!ant) continue;
-
-        // --- Check if ant is within logical grid bounds --- 
-        if (ant.x < 0 || ant.x >= gridCols || ant.y < 0 || ant.y >= gridRows) {
-            continue; // Don't draw if logically outside the grid
-        }
-
-        // Calculate ant's center pixel position
-        const antCenterX = offsetX + (ant.x + 0.5) * cellSize * scale;
-        const antCenterY = offsetY + (ant.y + 0.5) * cellSize * scale;
-        const antRadius = (cellSize / 2.5) * scale;
-
-        // Only draw if potentially visible on screen
-        if (antCenterX + antRadius > 0 && antCenterX - antRadius < width &&
-            antCenterY + antRadius > 0 && antCenterY - antRadius < height) {
-            ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(antCenterX, antCenterY, antRadius, 0, 2 * Math.PI); ctx.fill();
-        }
+        if (ants[i]) drawAntShape(ants[i]); // Call without isFullRedraw
     }
     setCanvasSmoothing(false); // Disable AA immediately after
     // ctx.restore(); // No restore needed
@@ -722,27 +808,11 @@ function drawUpdates() {
     });
 
     // --- 3. Draw Ants in their NEW positions (Enable Smoothing) --- 
-    setCanvasSmoothing(true); // Enable AA for circles
+    setCanvasSmoothing(true); // Enable AA for shapes
     for (let i = 0; i < ants.length; i++) {
-        const ant = ants[i];
-        if (!ant) continue;
-
-        // --- Check if ant is within logical grid bounds --- 
-        if (ant.x < 0 || ant.x >= gridCols || ant.y < 0 || ant.y >= gridRows) {
-            continue; // Don't draw if logically outside the grid
-        }
-
-        const antCenterX = offsetX + (ant.x + 0.5) * cellSize * scale;
-        const antCenterY = offsetY + (ant.y + 0.5) * cellSize * scale;
-        const antRadius = (cellSize / 2.5) * scale;
-        // Check visibility before drawing
-        if (antCenterX + antRadius > 0 && antCenterX - antRadius < width &&
-            antCenterY + antRadius > 0 && antCenterY - antRadius < height)
-        {
-            ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(antCenterX, antCenterY, antRadius, 0, 2 * Math.PI); ctx.fill();
-        }
+        if (ants[i]) drawAntShape(ants[i]); // Call without isFullRedraw
     }
-    setCanvasSmoothing(false); // Disable AA immediately after
+    setCanvasSmoothing(false);
 
     // --- 4. Clear the update set for the next frame --- 
     cellsToUpdate.clear();
@@ -888,9 +958,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const individualRulesContainer = document.querySelector('.individual-rules-container');
     const editRuleBtn = document.getElementById('editRuleBtn'); // Get edit button
     const ruleLabel = document.querySelector('.rules-display-container label'); // Get label
+    const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -913,6 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!individualRulesContainer) console.error("- individualRulesContainer is null");
         if (!editRuleBtn) console.error("- editRuleBtn is null");
         if (!ruleLabel) console.error("- ruleLabel is null");
+        if (!startDirectionSelect) console.error("- startDirectionSelect is null");
         return; // Stop execution
     }
 
@@ -921,7 +993,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initial State Setup ---
     if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && applyBtn && rulesDisplay) {
         updateIndividualRulesVisibility( parseInt(antCountInput.value, 10) || 0, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, applyBtn );
-        rulesDisplay.classList.add('hidden'); // Ensure editor hidden initially
     }
 
     // --- Attach Listeners ---
@@ -999,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (applyBtn) applyBtn.disabled = false;
     });
 
-    // Individual Rules Checkbox Listener - Calls helper, ensures editor hidden if checked
+    // Individual Rules Checkbox Listener - Handles main rule visibility AND content update
     if (individualRulesCheck) {
         individualRulesCheck.addEventListener('change', () => {
             updateIndividualRulesVisibility(
@@ -1059,13 +1130,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const maxStates = possibleStatesInput ? parseInt(possibleStatesInput.value, 10) : 2;
             const maxColors = possibleColorsInput ? parseInt(possibleColorsInput.value, 10) : 2;
             
-            // Validate inputs (ensure they are within their respective min/max)
-            const validatedMaxStates = Math.max(1, Math.min(100, maxStates || 1));
-            const validatedMaxColors = Math.max(2, Math.min(maxPossibleColors, maxColors || 2));
+            // Validate inputs (using updated limits)
+            const validatedMaxStates = Math.max(1, Math.min(1000, maxStates || 1)); // Use 1000
+            const validatedMaxColors = Math.max(2, Math.min(maxPossibleColors, maxColors || 2)); // maxPossibleColors is now 12
             
             // Randomize *within* the max limits
             const randomStates = Math.floor(Math.random() * validatedMaxStates) + 1;
-            // Ensure at least 2 colors are used for meaningful rules
             const randomColors = Math.floor(Math.random() * (validatedMaxColors - 1)) + 2; 
 
             console.log(` -> Using random states: ${randomStates} (max ${validatedMaxStates}), random colors: ${randomColors} (max ${validatedMaxColors})`);
@@ -1079,6 +1149,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start Position Select Listener
     if (startPositionSelect) {
         startPositionSelect.addEventListener('input', () => {
+            if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
+        });
+    }
+
+    // Start Direction Select Listener
+    if (startDirectionSelect) {
+        startDirectionSelect.addEventListener('input', () => {
             if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
         });
     }
@@ -1109,6 +1186,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (ruleLabel) {
         ruleLabel.addEventListener('click', toggleRuleEditor);
+    }
+
+    // Max States Input Listener
+    if (possibleStatesInput) {
+        possibleStatesInput.addEventListener('input', () => {
+            const input = possibleStatesInput;
+            const currentVal = parseInt(input.value, 10);
+            const minVal = parseInt(input.min, 10);
+            const maxVal = parseInt(input.max, 10);
+            if (!isNaN(currentVal)) { 
+                 if (currentVal < minVal) input.value = minVal;
+                 else if (currentVal > maxVal) input.value = maxVal;
+            }
+            // Enable Apply as this setting change *could* affect next Apply/Reset
+            // Or just affect next Randomize? Let's enable Apply for now, user can clarify if needed.
+            if (applyBtn) applyBtn.disabled = false; 
+        });
+    }
+
+    // Max Colors Input Listener
+    if (possibleColorsInput) {
+        possibleColorsInput.addEventListener('input', () => {
+            const input = possibleColorsInput;
+            const currentVal = parseInt(input.value, 10);
+            const minVal = parseInt(input.min, 10);
+            const maxVal = parseInt(input.max, 10);
+            if (!isNaN(currentVal)) { 
+                 if (currentVal < minVal) input.value = minVal;
+                 else if (currentVal > maxVal) input.value = maxVal;
+            }
+             if (applyBtn) applyBtn.disabled = false; 
+        });
     }
 
     initSimulation(false, undefined, undefined, true); // Initial Load

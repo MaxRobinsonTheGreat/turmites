@@ -16,7 +16,7 @@
         </div>
         <div class="panel-content">
             <!-- Panel Title -->
-            <h3 class="panel-title">Turmites</h3>
+            <h3 class="panel-title">Langton's Ant Colony</h3>
             <!-- Ant Count Input -->
             <div class="input-container ant-count-container">
                 <label for="antCountInput">Ants:</label>
@@ -33,25 +33,37 @@
                     <label for="rulesDisplay">Rule:</label>
                     <button id="editRuleBtn" title="Edit Rule">✎</button>
                 </div>
-                 <pre id="rulesDisplay" class="hidden" contenteditable="true" spellcheck="false"></pre>
+                 <pre id="rulesDisplay" contenteditable="true" spellcheck="false"></pre>
             </div>
             <!-- Start Position Select -->
             <div class="input-container start-position-container">
-                <label for="startPositionSelect">Start Pos:</label>
+                <label for="startPositionSelect">Start Position:</label>
                 <select id="startPositionSelect" title="Ant starting positions">
                     <option value="center" selected>Center</option>
                     <option value="random">Random</option>
                     <option value="grid">Grid</option>
+                    <option value="row">Row</option>
+                </select>
+            </div>
+            <!-- Added Start Direction Select -->
+            <div class="input-container start-direction-container">
+                <label for="startDirectionSelect">Start Direction:</label>
+                <select id="startDirectionSelect" title="Ant starting directions">
+                    <option value="0" selected>Up</option> <!-- N -->
+                    <option value="1">Right</option> <!-- E -->
+                    <option value="2">Down</option> <!-- S -->
+                    <option value="3">Left</option> <!-- W -->
+                    <option value="random">Random</option>
                 </select>
             </div>
             <!-- Randomization Parameters -->
             <div class="input-container random-params-container">
                 <label for="possibleStatesInput">Max States:</label>
-                <input type="number" id="possibleStatesInput" min="1" max="100" value="5" title="Max states for random rules (1-100)">
+                <input type="number" id="possibleStatesInput" min="1" max="1000" value="5" title="Max states for random rules (1-1000)">
             </div>
              <div class="input-container random-params-container">
                 <label for="possibleColorsInput">Max Colors:</label>
-                <input type="number" id="possibleColorsInput" min="2" max="10" value="5" title="Max colors for random rules (2-10)">
+                <input type="number" id="possibleColorsInput" min="2" max="12" value="5" title="Max colors for random rules (2-12)">
             </div>
             <!-- Rule Actions -->
             <div class="button-group rule-actions">

@@ -21,9 +21,9 @@ canvas {
     display: flex;
     flex-direction: column;
     /* align-items: flex-start; */ /* Let content stretch */
-    min-width: 280px; /* Increased panel width further */
+    min-width: 320px; /* Further Increased panel width */
     transition: min-height 0.3s ease, padding 0.3s ease, min-width 0.3s ease;
-    gap: 10px; /* Increased gap between header, content */
+    gap: 5px; /* Slightly smaller gap between all items */
 }
 
 .panel-header {
@@ -172,7 +172,7 @@ canvas {
 
 /* Style for rules display */
 .rules-display-container {
-    /* Removed margin-top: 10px; rely on gap/other margins */
+    margin-top: 10px; /* Add space above the Rule section */
     /* Container is block by default, contains label+icon and pre */
 }
 
@@ -184,18 +184,23 @@ canvas {
 }
 
 #editRuleBtn {
-    background: none;
-    border: none;
-    color: #ccc;
-    padding: 0; /* Remove padding */
-    margin: 0; /* Remove margin */
-    font-size: 1em; /* Slightly smaller icon */
+    background: none !important; /* Force no background */
+    border: none !important; /* Force no border */
+    color: #ccc; 
+    padding: 0 !important; /* Force no padding */
+    margin: 0 !important; /* Force no margin */
+    font-size: 1em; 
     cursor: pointer;
-    line-height: 1; /* Keep tight line height */
-    vertical-align: middle; /* Align with label text better */
+    line-height: 1; 
+    vertical-align: middle;
+    transition: color 0.1s ease;
+    box-shadow: none !important; /* Remove any potential shadow */
 }
 #editRuleBtn:hover {
     color: white;
+}
+#editRuleBtn:active {
+    color: #aaa;
 }
 
 .rules-display-container label {
@@ -258,7 +263,7 @@ canvas {
 
 /* General Hidden Utility */
 .hidden {
-    display: none !important;
+    display: none !important; /* Ensure this overrides other display rules */
 }
 
 /* Container for generic inputs like Ant Count */
