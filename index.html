@@ -12,7 +12,7 @@
     <div id="controlPanel">
         <div class="panel-header">
             <button id="minimizeBtn" title="Minimize Panel">−</button>
-            <button id="maximizeBtn" title="Maximize Panel">□</button>
+            <button id="maximizeBtn" title="Maximize Panel">⚙</button>
         </div>
         <div class="panel-content">
             <!-- Panel Title -->
@@ -32,8 +32,10 @@
                 <div class="rule-label-container">
                     <label for="rulesDisplay">Rule:</label>
                     <button id="editRuleBtn" title="Edit Rule">✎</button>
+                    <button id="saveRuleBtn" title="Save Rule">⭳</button>
+                    <button id="loadRuleBtn" title="Load Rule">⭱</button>
                 </div>
-                 <pre id="rulesDisplay" contenteditable="true" spellcheck="false"></pre>
+                 <pre id="rulesDisplay" contenteditable="true" spellcheck="false" class="hidden"></pre>
             </div>
             <!-- Start Position Select -->
             <div class="input-container start-position-container">

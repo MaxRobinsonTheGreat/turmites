@@ -183,52 +183,43 @@ function initGrid() {
 // --- Helper Functions ---
 
 // Helper function to update visibility and state of Individual Rules controls
-function updateIndividualRulesVisibility(antCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, applyBtn) {
+function updateIndividualRulesVisibility(antCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, rulesDisplayPre) {
     const showIndividualOption = antCount > 1;
-    let mainRuleShouldBeVisible = true; // Assume visible initially
-    let mainRuleDisplayNeedsUpdate = false; // Flag to check if we need to update text
 
-    // Show/Hide the whole "Individual Rules" container
+    // 1. Show/Hide the individual rules checkbox container
     if (individualRulesContainer) {
         individualRulesContainer.classList.toggle('hidden', !showIndividualOption);
     }
-    
-    // Enable/Disable the checkbox itself
+
+    // 2. Enable/Disable and Uncheck the checkbox if ant count is 1
+    let isIndividualChecked = false;
     if (individualRulesCheck) {
-        const wasChecked = individualRulesCheck.checked;
         individualRulesCheck.disabled = !showIndividualOption;
-        if (!showIndividualOption && wasChecked) {
-            individualRulesCheck.checked = false; 
-            mainRuleShouldBeVisible = true; // Force visible
-            mainRuleDisplayNeedsUpdate = true;
-            if(applyBtn) applyBtn.disabled = false;
-        } else if (showIndividualOption && wasChecked) {
-            mainRuleShouldBeVisible = false; // Hide if individual active
+        if (!showIndividualOption && individualRulesCheck.checked) {
+            individualRulesCheck.checked = false;
+            // If disabling the checkbox makes it unchecked, enable Apply button
+            const applyBtn = document.getElementById('applyBtn');
+             if (applyBtn) applyBtn.disabled = false; 
         }
-    } else {
-         mainRuleShouldBeVisible = true; // Always visible if no checkbox
+        // Read the *final* state of the checkbox AFTER potential unchecking
+        isIndividualChecked = individualRulesCheck.checked;
     }
 
-    // Show/Hide the ENTIRE rule display container
+    // 3. Show/Hide the entire rule section container based ONLY on checkbox state
     if (rulesDisplayContainer) {
-        const wasHidden = rulesDisplayContainer.classList.contains('hidden');
-        rulesDisplayContainer.classList.toggle('hidden', !mainRuleShouldBeVisible);
-        // If it just became visible, update its text content
-        if (mainRuleShouldBeVisible && wasHidden) {
-            const rulesDisplay = document.getElementById('rulesDisplay');
-            if (rulesDisplay) {
-                 const sourceRules = (ants.length > 0 && ants[0].individualRule) ? ants[0].individualRule : rules;
-                 const numStatesInRules = Object.keys(sourceRules).length;
-                 const numColorsInRules = sourceRules[0] ? sourceRules[0].length : 0;
-                 let rulesString = `// States: ${numStatesInRules}\n`;
-                 rulesString += `// Colors: ${numColorsInRules}\n`; 
-                 rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
-                 try { rulesString += JSON.stringify(sourceRules, null, 2); } catch (e) { rulesString = "Error stringifying rules.";}
-                 rulesDisplay.textContent = rulesString;
-                 console.log("Updated main rule display text as container became visible.");
-            }
-        }
+        rulesDisplayContainer.classList.toggle('hidden', isIndividualChecked);
     }
+
+    // 4. If the container is hidden (Individual Rules is ON),
+    //    ensure the rule editor <pre> tag is also hidden.
+    //    Otherwise, leave the <pre> tag's visibility alone (respect manual toggle).
+    if (rulesDisplayPre && isIndividualChecked) {
+        rulesDisplayPre.classList.add('hidden');
+    }
+    // NO 'else' block here - do not force visibility if container is shown.
+
+    // Note: Apply button state related to rule text changes is handled by its own listener.
+    // Apply button state related to ant count changes is handled by its listener.
 }
 
 function initAnts(preservedIndividualRules = null) {
@@ -241,6 +232,7 @@ function initAnts(preservedIndividualRules = null) {
     const startPositionSelect = document.getElementById('startPositionSelect');
     const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
     const individualRulesCheck = document.getElementById('individualRulesCheck');
+    const rulesDisplayPre = document.getElementById('rulesDisplay'); // Get the pre tag itself
 
     const startMode = startPositionSelect ? startPositionSelect.value : 'center';
     const startDirMode = startDirectionSelect ? startDirectionSelect.value : '0'; // Read direction mode
@@ -493,7 +485,7 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     let rulesString = `// States: ${numStatesInRules}\n`;
     rulesString += `// Colors: ${numColorsInRules}\n`; // Just the count
     rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
-    try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { /* ... */ }
+    try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { rulesString = "Error stringifying rules.";}
     if (rulesDisplay) rulesDisplay.textContent = rulesString;
     
     // --- Ensure Apply button is disabled after any init ---
@@ -511,21 +503,11 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     updateButtonText();
     pauseTime = 0;
 
-    // Enable/Disable checkbox based on ant count
     if (individualRulesCheck) {
         individualRulesCheck.disabled = (antCount <= 1);
         // If count becomes 1, uncheck and show main rules
         if (antCount <= 1 && individualRulesCheck.checked) {
             individualRulesCheck.checked = false;
-            if (rulesDisplay) rulesDisplay.classList.remove('hidden');
-        }
-    }
-    // Initial hide/show of rules display
-    if (rulesDisplay) {
-        if (useIndividual && antCount > 1) {
-             rulesDisplay.classList.add('hidden');
-        } else {
-             rulesDisplay.classList.remove('hidden');
         }
     }
 
@@ -959,9 +941,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const editRuleBtn = document.getElementById('editRuleBtn'); // Get edit button
     const ruleLabel = document.querySelector('.rules-display-container label'); // Get label
     const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
+    const rulesDisplayPre = document.getElementById('rulesDisplay'); // Get the pre tag itself
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -985,15 +968,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!editRuleBtn) console.error("- editRuleBtn is null");
         if (!ruleLabel) console.error("- ruleLabel is null");
         if (!startDirectionSelect) console.error("- startDirectionSelect is null");
+        if (!rulesDisplayPre) console.error("- rulesDisplayPre is null"); // Add log for pre tag
         return; // Stop execution
     }
 
     console.log("All control panel elements found. Proceeding with listeners and init...");
 
     // --- Initial State Setup ---
-    if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && applyBtn && rulesDisplay) {
-        updateIndividualRulesVisibility( parseInt(antCountInput.value, 10) || 0, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, applyBtn );
+    if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+        updateIndividualRulesVisibility(
+            parseInt(antCountInput.value, 10) || 0,
+            rulesDisplayContainer,
+            individualRulesContainer,
+            individualRulesCheck,
+            rulesDisplayPre // Pass pre tag
+        );
     }
+    // #rulesDisplay starts hidden via HTML class now, no need to add 'hidden' here.
 
     // --- Attach Listeners ---
     startStopBtn.addEventListener('click', () => {
@@ -1018,8 +1009,16 @@ document.addEventListener('DOMContentLoaded', () => {
         initSimulation(false, undefined, undefined, currentState);
         // Discard pending changes explicitly by disabling Apply button
         if (applyBtn) applyBtn.disabled = true;
-        // Optionally reset ant count input to current sim state? No, let it keep user input.
-        // Optionally reset rules text to current sim state? No, let it keep user input.
+         // Update visibility based on current state after reset
+         if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+            updateIndividualRulesVisibility(
+                parseInt(antCountInput.value, 10) || 0,
+                rulesDisplayContainer,
+                individualRulesContainer,
+                individualRulesCheck,
+                rulesDisplayPre
+            );
+        }
     });
 
     // Reset View Listener
@@ -1056,12 +1055,14 @@ document.addEventListener('DOMContentLoaded', () => {
                  else if (currentVal > maxVal) antCountInput.value = maxVal;
             }
             const currentCount = parseInt(antCountInput.value, 10) || 0;
-            updateIndividualRulesVisibility(currentCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, applyBtn); 
-            if (applyBtn) applyBtn.disabled = false;
-            // If editor was open and count becomes 1, hide editor
-            if (currentCount <= 1 && rulesDisplay && !rulesDisplay.classList.contains('hidden')) {
-                rulesDisplay.classList.add('hidden');
+            // Call updated visibility function, passing pre tag
+            if (rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+                 updateIndividualRulesVisibility(currentCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, rulesDisplayPre);
             }
+            if (applyBtn) applyBtn.disabled = false;
+            // If editor was open and count becomes 1 (which forces individual off),
+            // it will be handled by updateIndividualRulesVisibility hiding the container.
+            // No extra logic needed here.
         });
     }
 
@@ -1075,15 +1076,12 @@ document.addEventListener('DOMContentLoaded', () => {
         individualRulesCheck.addEventListener('change', () => {
             updateIndividualRulesVisibility(
                 parseInt(document.getElementById('antCountInput').value, 10) || 0,
-                rulesDisplayContainer, 
-                individualRulesContainer, 
-                individualRulesCheck, 
-                applyBtn
+                rulesDisplayContainer,
+                individualRulesContainer,
+                individualRulesCheck,
+                rulesDisplayPre // Pass pre tag
             );
-             // If checked ON, ensure editor is hidden
-             if (rulesDisplay && individualRulesCheck.checked) {
-                  rulesDisplay.classList.add('hidden');
-             }
+            // If checked ON, the update function now handles hiding the <pre> tag if necessary.
             if (applyBtn) applyBtn.disabled = false;
         });
     }
@@ -1117,6 +1115,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentState = isRunning;
             console.log("Resetting simulation to apply changes.");
             initSimulation(false, undefined, undefined, currentState); // initSimulation reads ant count and uses current global 'rules'
+             // Update visibility based on current state after apply/reset
+            if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+                updateIndividualRulesVisibility(
+                    parseInt(antCountInput.value, 10) || 0,
+                    rulesDisplayContainer,
+                    individualRulesContainer,
+                    individualRulesCheck,
+                    rulesDisplayPre
+                );
+            }
         });
     }
 
@@ -1125,7 +1133,6 @@ document.addEventListener('DOMContentLoaded', () => {
         randomizeBtn.addEventListener('click', () => {
             console.log("Randomizing rules and resetting simulation...");
             const currentState = isRunning;
-            
             // Read max states/colors from inputs
             const maxStates = possibleStatesInput ? parseInt(possibleStatesInput.value, 10) : 2;
             const maxColors = possibleColorsInput ? parseInt(possibleColorsInput.value, 10) : 2;
@@ -1143,6 +1150,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Generate rules THEN reset simulation
             initSimulation(true, randomStates, randomColors, currentState);
             if (applyBtn) applyBtn.disabled = true;
+             // Update visibility based on current state after randomize/reset
+             if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+                updateIndividualRulesVisibility(
+                    parseInt(antCountInput.value, 10) || 0,
+                    rulesDisplayContainer,
+                    individualRulesContainer,
+                    individualRulesCheck,
+                    rulesDisplayPre
+                );
+            }
         });
     }
 
@@ -1177,15 +1194,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listener to toggle rule editor visibility
     const toggleRuleEditor = () => {
-        if (rulesDisplay && !individualRulesCheck.checked) { // Only toggle if not in individual mode
-            rulesDisplay.classList.toggle('hidden');
+        // Get the pre tag itself
+        const rulesEditorPre = document.getElementById('rulesDisplay');
+        if (rulesEditorPre && !individualRulesCheck.checked) { // Only toggle if not in individual mode
+            rulesEditorPre.classList.toggle('hidden');
         }
     };
     if (editRuleBtn) {
         editRuleBtn.addEventListener('click', toggleRuleEditor);
-    }
-    if (ruleLabel) {
-        ruleLabel.addEventListener('click', toggleRuleEditor);
     }
 
     // Max States Input Listener
