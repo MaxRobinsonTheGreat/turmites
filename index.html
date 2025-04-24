@@ -36,6 +36,15 @@
                     <button id="loadRuleBtn" title="Load Rule">⭱</button>
                 </div>
                  <pre id="rulesDisplay" contenteditable="true" spellcheck="false" class="hidden"></pre>
+                 <!-- Added Preset Select -->
+                 <div class="input-container preset-container">
+                    <label for="presetSelect">Presets:</label>
+                    <select id="presetSelect" title="Load a preset rule">
+                        <option value="langtons" selected>Langton's Ant</option>
+                        <option value="constructor">Constructor</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
             </div>
             <!-- Start Position Select -->
             <div class="input-container start-position-container">
@@ -69,8 +78,9 @@
             </div>
             <!-- Rule Actions -->
             <div class="button-group rule-actions">
-                <button id="randomizeBtn" title="Randomize Rules (R)">Randomize</button>
-                <button id="applyBtn" title="Apply Ruleset Changes" disabled>Apply Changes</button>
+                <button id="randomizeBtn" title="Randomize Rules (F)">Randomize</button>
+                <button id="applyBtn" title="Apply Changes" disabled>Apply</button>
+                <button id="discardBtn" title="Discard Unapplied Changes" disabled>Discard</button>
             </div>
             <!-- Added Horizontal Line Separator -->
             <hr class="control-separator">
@@ -83,7 +93,7 @@
              <!-- Main Buttons -->
             <div class="button-group main-actions">
                 <button id="startStopBtn" title="Pause/Play (Space)">❚❚</button>
-                <button id="resetBtn" title="Reset Simulation">↺</button>
+                <button id="resetBtn" title="Reset Simulation (R)">↺</button>
                 <button id="resetViewBtn" title="Reset View">⛶</button>
             </div>
         </div>

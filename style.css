@@ -61,6 +61,13 @@ canvas {
     min-width: auto; /* Allow shrinking */
     min-height: auto; /* Allow shrinking */
     gap: 0; /* No gap when minimized */
+    display: block !important; /* Keep important for now */
+    margin-left: 0; /* No margin needed when alone */
+    /* Add styles for minimized maximize button */
+    padding: 5px; /* Add padding to make it feel bigger */
+    outline: 1px solid #ccc; /* Add a subtle outline */
+    outline-offset: 2px; /* Add space between icon and outline */
+    border-radius: 3px; /* Optional: match other button rounding */
 }
 
 #controlPanel.minimized .panel-content {
@@ -130,6 +137,29 @@ canvas {
 #controlPanel #applyBtn:not(:disabled):active {
     background-color: #8d8; /* Even brighter green */
     transform: translateY(1px); 
+}
+
+/* Style for Discard button */
+#controlPanel #discardBtn:not(:disabled) {
+    background-color: #c55; /* Base enabled red */
+    color: white;
+}
+
+#controlPanel #discardBtn:not(:disabled):hover {
+    background-color: #e77; /* Brighter red on hover */
+}
+
+#controlPanel #discardBtn:not(:disabled):active {
+    background-color: #f88; /* Even brighter red */
+    transform: translateY(1px);
+}
+
+/* Disabled discard button state (overrides general disabled) */
+#controlPanel #discardBtn:disabled {
+    background-color: #444; /* Greyed-out red */
+    color: #888;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Style for button group (in content) */
@@ -235,6 +265,11 @@ canvas {
     color: #ddd;
     outline: none;
     margin: 12px 0; /* Space above and below */
+}
+
+/* Style for Preset dropdown */
+.preset-container {
+    margin-top: 8px; /* Add some space above the dropdown */
 }
 
 #rulesDisplay:focus {

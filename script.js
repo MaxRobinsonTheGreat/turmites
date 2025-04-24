@@ -66,6 +66,9 @@ const maxPossibleColors = cellColors.length; // Should now be 12
 // --- Turmite Rule Definition (Mutable) ---
 let rules = {}; // Initialize as empty
 
+// --- State Storage for Discard --- 
+let lastAppliedState = {};
+
 // Function to generate random rules with variable states/colors
 function generateRandomRules(numStates, numColorsToUse) {
     const newRules = {};
@@ -233,6 +236,9 @@ function initAnts(preservedIndividualRules = null) {
     const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
     const individualRulesCheck = document.getElementById('individualRulesCheck');
     const rulesDisplayPre = document.getElementById('rulesDisplay'); // Get the pre tag itself
+    const saveRuleBtn = document.getElementById('saveRuleBtn'); // Get save button
+    const loadRuleBtn = document.getElementById('loadRuleBtn'); // Get load button
+    const presetSelect = document.getElementById('presetSelect'); // Get preset select
 
     const startMode = startPositionSelect ? startPositionSelect.value : 'center';
     const startDirMode = startDirectionSelect ? startDirectionSelect.value : '0'; // Read direction mode
@@ -488,8 +494,10 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { rulesString = "Error stringifying rules.";}
     if (rulesDisplay) rulesDisplay.textContent = rulesString;
     
-    // --- Ensure Apply button is disabled after any init ---
+    // --- Ensure Apply and Discard buttons are disabled after any init ---
     if (applyBtn) applyBtn.disabled = true;
+    const discardBtn = document.getElementById('discardBtn');
+    if (discardBtn) discardBtn.disabled = true;
 
     setCanvasSmoothing(false);
     cellsToUpdate.clear();
@@ -516,6 +524,27 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
         startRenderLoop();     // Schedules calls to draw() -> drawUpdates
     } 
     // else: Paused state handled, initial draw already done.
+
+    // --- Store the successfully applied state for potential discard --- 
+    console.log("Storing current state as last applied state.");
+    const currentAntCount = antCountInput ? antCountInput.value : '1';
+    const currentStartPosition = startPositionSelect ? startPositionSelect.value : 'center';
+    const currentStartDirection = startDirectionSelect ? startDirectionSelect.value : '0';
+    const currentMaxStates = possibleStatesInput ? possibleStatesInput.value : '2';
+    const currentMaxColors = possibleColorsInput ? possibleColorsInput.value : '2';
+    const currentIndividualChecked = individualRulesCheck ? individualRulesCheck.checked : false;
+    const currentRulesText = rulesDisplay ? rulesDisplay.textContent : '';
+
+    lastAppliedState = {
+        antCount: currentAntCount,
+        startPosition: currentStartPosition,
+        startDirection: currentStartDirection,
+        maxStates: currentMaxStates,
+        maxColors: currentMaxColors,
+        individualChecked: currentIndividualChecked,
+        rulesText: currentRulesText // Store the raw text content
+    };
+    // console.log("Stored State:", lastAppliedState); // Optional: Debug log
 }
 
 function startSimulation() {
@@ -900,9 +929,14 @@ window.addEventListener('keydown', (event) => {
         const btn = document.getElementById('startStopBtn');
         if (btn) btn.click(); // Simulate click
     }
-    // Check for 'R' key (Randomize)
-    else if (event.key === 'r' || event.key === 'R') {
+    // Check for 'F' key (Randomize)
+    else if (event.key === 'f' || event.key === 'F') {
         const btn = document.getElementById('randomizeBtn');
+        if (btn) btn.click(); // Simulate click
+    }
+    // Check for 'R' key (Reset)
+    else if (event.key === 'r' || event.key === 'R') {
+        const btn = document.getElementById('resetBtn');
         if (btn) btn.click(); // Simulate click
     }
 });
@@ -942,9 +976,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const ruleLabel = document.querySelector('.rules-display-container label'); // Get label
     const startDirectionSelect = document.getElementById('startDirectionSelect'); // Get direction select
     const rulesDisplayPre = document.getElementById('rulesDisplay'); // Get the pre tag itself
+    const saveRuleBtn = document.getElementById('saveRuleBtn'); // Get save button
+    const loadRuleBtn = document.getElementById('loadRuleBtn'); // Get load button
+    const discardBtn = document.getElementById('discardBtn'); // Get discard button
+    const presetSelect = document.getElementById('presetSelect'); // Get preset select
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */ || !saveRuleBtn || !loadRuleBtn || !discardBtn || !presetSelect) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -969,6 +1007,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ruleLabel) console.error("- ruleLabel is null");
         if (!startDirectionSelect) console.error("- startDirectionSelect is null");
         if (!rulesDisplayPre) console.error("- rulesDisplayPre is null"); // Add log for pre tag
+        if (!saveRuleBtn) console.error("- saveRuleBtn is null"); // Add log for save button
+        if (!loadRuleBtn) console.error("- loadRuleBtn is null"); // Add log for load button
+        if (!discardBtn) console.error("- discardBtn is null"); // Add log for discard button
+        if (!presetSelect) console.error("- presetSelect is null"); // Add log for preset select
         return; // Stop execution
     }
 
@@ -1009,6 +1051,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initSimulation(false, undefined, undefined, currentState);
         // Discard pending changes explicitly by disabling Apply button
         if (applyBtn) applyBtn.disabled = true;
+        const discardBtn = document.getElementById('discardBtn');
+        if (discardBtn) discardBtn.disabled = true;
          // Update visibility based on current state after reset
          if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
             updateIndividualRulesVisibility(
@@ -1060,6 +1104,9 @@ document.addEventListener('DOMContentLoaded', () => {
                  updateIndividualRulesVisibility(currentCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, rulesDisplayPre);
             }
             if (applyBtn) applyBtn.disabled = false;
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
             // If editor was open and count becomes 1 (which forces individual off),
             // it will be handled by updateIndividualRulesVisibility hiding the container.
             // No extra logic needed here.
@@ -1069,6 +1116,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Rules Display Listener (Input event)
     rulesDisplay.addEventListener('input', () => {
         if (applyBtn) applyBtn.disabled = false;
+        const discardBtn = document.getElementById('discardBtn');
+        if (discardBtn) discardBtn.disabled = false; // Also enable discard
+        if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
     });
 
     // Individual Rules Checkbox Listener - Handles main rule visibility AND content update
@@ -1083,6 +1133,9 @@ document.addEventListener('DOMContentLoaded', () => {
             );
             // If checked ON, the update function now handles hiding the <pre> tag if necessary.
             if (applyBtn) applyBtn.disabled = false;
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
         });
     }
 
@@ -1112,6 +1165,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset simulation using potentially updated rules and current ant count input
             applyBtn.disabled = true; // Disable button after initiating apply/reset
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = true; // Also disable discard
             const currentState = isRunning;
             console.log("Resetting simulation to apply changes.");
             initSimulation(false, undefined, undefined, currentState); // initSimulation reads ant count and uses current global 'rules'
@@ -1150,6 +1205,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Generate rules THEN reset simulation
             initSimulation(true, randomStates, randomColors, currentState);
             if (applyBtn) applyBtn.disabled = true;
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = true; // Also disable discard
              // Update visibility based on current state after randomize/reset
              if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
                 updateIndividualRulesVisibility(
@@ -1167,6 +1224,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (startPositionSelect) {
         startPositionSelect.addEventListener('input', () => {
             if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
         });
     }
 
@@ -1174,6 +1234,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (startDirectionSelect) {
         startDirectionSelect.addEventListener('input', () => {
             if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
         });
     }
 
@@ -1218,6 +1281,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Enable Apply as this setting change *could* affect next Apply/Reset
             // Or just affect next Randomize? Let's enable Apply for now, user can clarify if needed.
             if (applyBtn) applyBtn.disabled = false; 
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
         });
     }
 
@@ -1233,10 +1299,269 @@ document.addEventListener('DOMContentLoaded', () => {
                  else if (currentVal > maxVal) input.value = maxVal;
             }
              if (applyBtn) applyBtn.disabled = false; 
+            const discardBtn = document.getElementById('discardBtn');
+            if (discardBtn) discardBtn.disabled = false; // Also enable discard
+            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+        });
+    }
+
+    // Save Rule Button Listener
+    if (saveRuleBtn) {
+        saveRuleBtn.addEventListener('click', () => {
+            const rulesEditor = document.getElementById('rulesDisplay');
+            if (!rulesEditor) return;
+
+            let rulesText = rulesEditor.textContent || "";
+            // Remove comment lines
+            const rulesWithoutComments = rulesText.replace(/^\s*\/\/.*$/gm, '').trim();
+
+            if (!rulesWithoutComments) {
+                alert("Rule editor is empty or contains only comments. Nothing to save.");
+                return;
+            }
+
+            try {
+                // Validate that the uncommented text is valid JSON
+                const parsedRules = JSON.parse(rulesWithoutComments);
+                // Re-stringify for consistent formatting in the saved file
+                const jsonString = JSON.stringify(parsedRules, null, 2);
+                
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'turmite_rule.json'; // Suggested filename
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url); // Clean up
+                console.log("Rule saved successfully.");
+
+            } catch (e) {
+                console.error("Error processing rule for saving:", e);
+                alert(`Could not save rule. The content (after removing comments) is not valid JSON:\n\n${e.message}`);
+            }
+        });
+    }
+
+    // Load Rule Button Listener
+    if (loadRuleBtn) {
+        loadRuleBtn.addEventListener('click', () => {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json,application/json'; // Accept .json files
+            fileInput.style.display = 'none'; // Keep it hidden
+
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files ? event.target.files[0] : null;
+                if (!file) {
+                    console.log("No file selected.");
+                    return;
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    const content = e.target?.result;
+                    const rulesEditor = document.getElementById('rulesDisplay');
+                    const applyBtn = document.getElementById('applyBtn');
+                    const discardBtn = document.getElementById('discardBtn'); // Get discard button here too
+                    if (!rulesEditor || !applyBtn || !discardBtn) return;
+
+                    try {
+                        if (typeof content !== 'string') {
+                             throw new Error("Failed to read file content as text.");
+                        }
+                        const parsedRules = JSON.parse(content);
+                        
+                        // Basic validation: Check if it's an object (could be more robust)
+                        if (typeof parsedRules !== 'object' || parsedRules === null || Array.isArray(parsedRules)) {
+                            throw new Error("Loaded JSON is not a valid rule object.");
+                        }
+
+                        // Format and add comments before displaying
+                        const numStates = Object.keys(parsedRules).length;
+                        const numColors = parsedRules[0] ? parsedRules[0].length : 0; // Assuming state 0 exists
+                        let rulesString = "";
+                        rulesString += `// States: ${numStates}\n`;
+                        rulesString += `// Colors: ${numColors}\n`; 
+                        rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
+                        rulesString += JSON.stringify(parsedRules, null, 2);
+
+                        rulesEditor.textContent = rulesString;
+                        applyBtn.disabled = false; // Enable Apply button
+                        if (discardBtn) discardBtn.disabled = false; // Also enable discard
+                        // Loading a file creates a custom state
+                        if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+                        console.log("Rule loaded successfully into editor.");
+
+                    } catch (error) {
+                        console.error("Error loading or parsing rule file:", error);
+                        alert(`Failed to load rule: ${error.message}`);
+                    }
+                };
+
+                reader.onerror = (e) => {
+                    console.error("Error reading file:", e);
+                    alert("An error occurred while trying to read the file.");
+                };
+
+                reader.readAsText(file); // Read the file as text
+            });
+
+            document.body.appendChild(fileInput); // Add to body to allow click
+            fileInput.click();
+            document.body.removeChild(fileInput); // Clean up immediately after click
+        });
+    }
+
+    // Discard Button Listener
+    if (discardBtn) {
+        discardBtn.addEventListener('click', () => {
+            console.log("Discarding unapplied changes...");
+            
+            // Check if there is a stored state
+            if (Object.keys(lastAppliedState).length === 0) {
+                console.warn("No last applied state found to discard to.");
+                // Optionally disable buttons anyway?
+                if (applyBtn) applyBtn.disabled = true;
+                if (discardBtn) discardBtn.disabled = true;
+                return;
+            }
+
+            // Restore controls from lastAppliedState
+            if (antCountInput) antCountInput.value = lastAppliedState.antCount;
+            if (startPositionSelect) startPositionSelect.value = lastAppliedState.startPosition;
+            if (startDirectionSelect) startDirectionSelect.value = lastAppliedState.startDirection;
+            if (possibleStatesInput) possibleStatesInput.value = lastAppliedState.maxStates;
+            if (possibleColorsInput) possibleColorsInput.value = lastAppliedState.maxColors;
+            if (individualRulesCheck) individualRulesCheck.checked = lastAppliedState.individualChecked;
+            if (rulesDisplayPre) rulesDisplayPre.textContent = lastAppliedState.rulesText;
+
+            // Update visibility based on restored state
+            if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
+                updateIndividualRulesVisibility(
+                    parseInt(lastAppliedState.antCount, 10) || 0,
+                    rulesDisplayContainer,
+                    individualRulesContainer,
+                    individualRulesCheck,
+                    rulesDisplayPre
+                );
+            }
+
+            // Disable Apply and Discard buttons
+            if (applyBtn) applyBtn.disabled = true;
+            if (discardBtn) discardBtn.disabled = true;
+            console.log("Changes discarded.");
+        });
+    }
+
+    // --- Preset Loading Logic --- 
+    function loadPresetRule(presetValue) {
+        const rulesEditor = document.getElementById('rulesDisplay');
+        const applyBtn = document.getElementById('applyBtn');
+        const discardBtn = document.getElementById('discardBtn');
+
+        if (!rulesEditor || !applyBtn || !discardBtn) return;
+
+        let presetRules = null;
+        let presetName = "";
+
+        switch(presetValue) {
+            case 'langtons':
+                presetName = "Langton's Ant";
+                presetRules = {
+                    0: [
+                        { writeColor: 1, move: 'R', nextState: 0 }, // Color 0: Turn Right, Write 1
+                        { writeColor: 0, move: 'L', nextState: 0 }  // Color 1: Turn Left, Write 0
+                    ]
+                };
+                break;
+            case 'constructor': // Added Constructor preset
+                presetName = "Constructor";
+                presetRules = {
+                    "0": [
+                        {
+                        "writeColor": 0,
+                        "move": "S",
+                        "nextState": 2
+                        },
+                        {
+                        "writeColor": 0,
+                        "move": "S",
+                        "nextState": 2
+                        }
+                    ],
+                    "1": [
+                        {
+                        "writeColor": 1,
+                        "move": "L",
+                        "nextState": 2
+                        },
+                        {
+                        "writeColor": 0,
+                        "move": "R",
+                        "nextState": 1
+                        }
+                    ],
+                    "2": [
+                        {
+                        "writeColor": 0,
+                        "move": "N",
+                        "nextState": 1
+                        },
+                        {
+                        "writeColor": 0,
+                        "move": "U",
+                        "nextState": 2
+                        }
+                    ]
+                };
+                break;
+            // Add more cases for future presets here
+            case 'custom': // Renamed from 'none'
+            default:
+                // Do nothing if 'custom' or unknown value selected
+                return; 
+        }
+
+        if (presetRules) {
+            try {
+                const numStates = Object.keys(presetRules).length;
+                const numColors = presetRules[0] ? presetRules[0].length : 0;
+                let rulesString = `// Preset: ${presetName}\n`;
+                rulesString += `// States: ${numStates}\n`;
+                rulesString += `// Colors: ${numColors}\n`; 
+                rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
+                rulesString += JSON.stringify(presetRules, null, 2);
+
+                rulesEditor.textContent = rulesString;
+                applyBtn.disabled = false; // Restore enabling
+                discardBtn.disabled = false; // Restore enabling
+                console.log(`Preset '${presetName}' loaded into editor.`);
+
+            } catch (error) {
+                console.error("Error formatting preset rule:", error);
+                alert(`Failed to load preset '${presetName}': ${error.message}`);
+            }
+        }
+    }
+
+    // Preset Select Listener
+    if (presetSelect) {
+        presetSelect.addEventListener('change', (event) => {
+            loadPresetRule(event.target.value);
         });
     }
 
     initSimulation(false, undefined, undefined, true); // Initial Load
+
+    // Load the default preset AFTER the initial simulation setup
+    loadPresetRule(presetSelect.value);
+    // --- Disable buttons immediately after initial preset load --- 
+    if (applyBtn) applyBtn.disabled = true;
+    if (discardBtn) discardBtn.disabled = true;
+    console.log("Disabled Apply/Discard after initial preset load.");
 });
 
 // Global listeners like resize can often stay global
