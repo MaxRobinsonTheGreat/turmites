@@ -1464,68 +1464,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!rulesEditor || !applyBtn || !discardBtn) return;
 
-        let presetRules = null;
-        let presetName = "";
-
-        switch(presetValue) {
-            case 'langtons':
-                presetName = "Langton's Ant";
-                presetRules = {
-                    0: [
-                        { writeColor: 1, move: 'R', nextState: 0 }, // Color 0: Turn Right, Write 1
-                        { writeColor: 0, move: 'L', nextState: 0 }  // Color 1: Turn Left, Write 0
-                    ]
-                };
-                break;
-            case 'constructor': // Added Constructor preset
-                presetName = "Constructor";
-                presetRules = {
-                    "0": [
-                        {
-                        "writeColor": 0,
-                        "move": "S",
-                        "nextState": 2
-                        },
-                        {
-                        "writeColor": 0,
-                        "move": "S",
-                        "nextState": 2
-                        }
-                    ],
-                    "1": [
-                        {
-                        "writeColor": 1,
-                        "move": "L",
-                        "nextState": 2
-                        },
-                        {
-                        "writeColor": 0,
-                        "move": "R",
-                        "nextState": 1
-                        }
-                    ],
-                    "2": [
-                        {
-                        "writeColor": 0,
-                        "move": "N",
-                        "nextState": 1
-                        },
-                        {
-                        "writeColor": 0,
-                        "move": "U",
-                        "nextState": 2
-                        }
-                    ]
-                };
-                break;
-            // Add more cases for future presets here
-            case 'custom': // Renamed from 'none'
-            default:
-                // Do nothing if 'custom' or unknown value selected
-                return; 
+        if (presetValue === 'custom') {
+            // Do nothing if 'custom' selected, keep current editor content
+            // Or, if you want 'custom' to clear the editor or load a default empty state:
+            // rulesEditor.textContent = "// Custom rules - define your JSON here";
+            // applyBtn.disabled = false; // Or true, depending on desired behavior
+            // discardBtn.disabled = false;
+            return; 
         }
 
-        if (presetRules) {
+        const selectedPreset = presetDefinitions[presetValue];
+
+        if (selectedPreset) {
+            const presetRules = selectedPreset.rules;
+            const presetName = selectedPreset.name;
             try {
                 const numStates = Object.keys(presetRules).length;
                 const numColors = presetRules[0] ? presetRules[0].length : 0;
@@ -1536,14 +1488,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 rulesString += JSON.stringify(presetRules, null, 2);
 
                 rulesEditor.textContent = rulesString;
-                applyBtn.disabled = false; // Restore enabling
-                discardBtn.disabled = false; // Restore enabling
+                applyBtn.disabled = false; 
+                discardBtn.disabled = false; 
                 console.log(`Preset '${presetName}' loaded into editor.`);
 
             } catch (error) {
                 console.error("Error formatting preset rule:", error);
                 alert(`Failed to load preset '${presetName}': ${error.message}`);
             }
+        } else {
+            console.warn(`Preset with value '${presetValue}' not found in definitions.`);
+            // Optionally, clear the editor or load a default if a preset is not found
+            // rulesEditor.textContent = "// Selected preset not found";
         }
     }
 
