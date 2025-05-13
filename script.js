@@ -72,7 +72,25 @@ let lastAppliedState = {};
 // Function to generate random rules with variable states/colors
 function generateRandomRules(numStates, numColorsToUse) {
     const newRules = {};
-    const moveOptions = ['L', 'R', 'N', 'U', 'S'];
+    const moveModeSelect = document.getElementById('randomMoveModeSelect');
+    const moveMode = moveModeSelect ? moveModeSelect.value : 'relative'; // Default to relative
+
+    const relativeMoves = ['L', 'R', 'N', 'U', 'S'];
+    const absoluteMoves = ['^', '>', 'v', '<', 'S', 'N']; // Include S and N for variety
+    let moveOptions;
+
+    switch (moveMode) {
+        case 'absolute':
+            moveOptions = absoluteMoves;
+            break;
+        case 'mixed':
+            moveOptions = relativeMoves.concat(absoluteMoves);
+            break;
+        case 'relative':
+        default:
+            moveOptions = relativeMoves;
+            break;
+    }
 
     for (let s = 0; s < numStates; s++) {
         newRules[s] = [];
@@ -91,7 +109,26 @@ function generateRandomRules(numStates, numColorsToUse) {
 // Helper function to generate rules for a single ant
 function generateRandomRulesForAnt(numStates, numColorsToUse) {
     const antSpecificRules = {};
-    const moveOptions = ['L', 'R', 'N', 'U', 'S'];
+    const moveModeSelect = document.getElementById('randomMoveModeSelect');
+    const moveMode = moveModeSelect ? moveModeSelect.value : 'relative'; // Default to relative
+
+    const relativeMoves = ['L', 'R', 'N', 'U', 'S'];
+    const absoluteMoves = ['^', '>', 'v', '<', 'S', 'N']; // Include S and N for variety
+    let moveOptions;
+
+    switch (moveMode) {
+        case 'absolute':
+            moveOptions = absoluteMoves;
+            break;
+        case 'mixed':
+            moveOptions = relativeMoves.concat(absoluteMoves);
+            break;
+        case 'relative':
+        default:
+            moveOptions = relativeMoves;
+            break;
+    }
+
     for (let s = 0; s < numStates; s++) {
         antSpecificRules[s] = [];
         for (let c = 0; c < numColorsToUse; c++) {
@@ -239,6 +276,7 @@ function initAnts(preservedIndividualRules = null) {
     const saveRuleBtn = document.getElementById('saveRuleBtn'); // Get save button
     const loadRuleBtn = document.getElementById('loadRuleBtn'); // Get load button
     const presetSelect = document.getElementById('presetSelect'); // Get preset select
+    const randomMoveModeSelect = document.getElementById('randomMoveModeSelect'); // Get move mode select
 
     const startMode = startPositionSelect ? startPositionSelect.value : 'center';
     const startDirMode = startDirectionSelect ? startDirectionSelect.value : '0'; // Read direction mode
@@ -604,6 +642,7 @@ function updateButtonText() {
 // Renamed and parameterized
 function stepSingleAntLogic(ant) {
     if (!grid || !ant) return; // Check individual ant
+    if (ant.state === -1) return; // HALT state: do nothing further
     if (gridCols <= 0 || gridRows <= 0) return;
 
     ant.x = (ant.x + gridCols) % gridCols;
@@ -648,11 +687,18 @@ function stepSingleAntLogic(ant) {
     let dx = 0, dy = 0;
     // --- Determine Direction Change --- 
     switch (rule.move) { // Use rule.move directly again
+        // Relative moves
         case 'R': ant.dir = (ant.dir + 1) % 4; break;
         case 'L': ant.dir = (ant.dir - 1 + 4) % 4; break;
         case 'U': ant.dir = (ant.dir + 2) % 4; break;
-        case 'S': break; 
-        case 'N': default: break; 
+        case 'S': break; // Stay - no direction change
+        case 'N': break; // None - no direction change
+        // Absolute moves
+        case '^': ant.dir = 0; break; // North
+        case '>': ant.dir = 1; break; // East
+        case 'v': ant.dir = 2; break; // South
+        case '<': ant.dir = 3; break; // West
+        default: break; // Treat any other unknown character like 'N'
     }
     // --- Determine Movement Delta (only if not 'S') ---
     if (rule.move !== 'S') { // Use rule.move directly again
@@ -980,9 +1026,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadRuleBtn = document.getElementById('loadRuleBtn'); // Get load button
     const discardBtn = document.getElementById('discardBtn'); // Get discard button
     const presetSelect = document.getElementById('presetSelect'); // Get preset select
+    const randomMoveModeSelect = document.getElementById('randomMoveModeSelect'); // Get move mode select
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */ || !saveRuleBtn || !loadRuleBtn || !discardBtn || !presetSelect) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */ || !saveRuleBtn || !loadRuleBtn || !discardBtn || !presetSelect || !randomMoveModeSelect /* Add check */ ) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -1011,10 +1058,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!loadRuleBtn) console.error("- loadRuleBtn is null"); // Add log for load button
         if (!discardBtn) console.error("- discardBtn is null"); // Add log for discard button
         if (!presetSelect) console.error("- presetSelect is null"); // Add log for preset select
+        if (!randomMoveModeSelect) console.error("- randomMoveModeSelect is null"); // Add log for move mode select
         return; // Stop execution
     }
 
     console.log("All control panel elements found. Proceeding with listeners and init...");
+
+    // --- Helper Function ---
+    function markChangesPending(applyBtn, discardBtn, presetSelect) {
+        if (applyBtn) applyBtn.disabled = false;
+        if (discardBtn) discardBtn.disabled = false;
+        if (presetSelect) presetSelect.value = 'custom';
+    }
 
     // --- Initial State Setup ---
     if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
@@ -1045,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     resetBtn.addEventListener('click', () => {
-        console.log("Resetting simulation state (keeping current rules)...");
         const currentState = isRunning; // Check state *before* calling init
         // Call init without randomize, state/color counts (uses current rules)
         initSimulation(false, undefined, undefined, currentState);
@@ -1103,10 +1157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
                  updateIndividualRulesVisibility(currentCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, rulesDisplayPre);
             }
-            if (applyBtn) applyBtn.disabled = false;
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
             // If editor was open and count becomes 1 (which forces individual off),
             // it will be handled by updateIndividualRulesVisibility hiding the container.
             // No extra logic needed here.
@@ -1115,10 +1166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Rules Display Listener (Input event)
     rulesDisplay.addEventListener('input', () => {
-        if (applyBtn) applyBtn.disabled = false;
-        const discardBtn = document.getElementById('discardBtn');
-        if (discardBtn) discardBtn.disabled = false; // Also enable discard
-        if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+        markChangesPending(applyBtn, discardBtn, presetSelect);
     });
 
     // Individual Rules Checkbox Listener - Handles main rule visibility AND content update
@@ -1132,10 +1180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rulesDisplayPre // Pass pre tag
             );
             // If checked ON, the update function now handles hiding the <pre> tag if necessary.
-            if (applyBtn) applyBtn.disabled = false;
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
         });
     }
 
@@ -1223,20 +1268,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start Position Select Listener
     if (startPositionSelect) {
         startPositionSelect.addEventListener('input', () => {
-            if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
         });
     }
 
     // Start Direction Select Listener
     if (startDirectionSelect) {
         startDirectionSelect.addEventListener('input', () => {
-            if (applyBtn) applyBtn.disabled = false; // Enable Apply on change
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
+        });
+    }
+
+    // Random Movement Mode Select Listener
+    if (randomMoveModeSelect) {
+        randomMoveModeSelect.addEventListener('input', () => {
+            markChangesPending(applyBtn, discardBtn, presetSelect);
         });
     }
 
@@ -1278,12 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (currentVal < minVal) input.value = minVal;
                  else if (currentVal > maxVal) input.value = maxVal;
             }
-            // Enable Apply as this setting change *could* affect next Apply/Reset
-            // Or just affect next Randomize? Let's enable Apply for now, user can clarify if needed.
-            if (applyBtn) applyBtn.disabled = false; 
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
         });
     }
 
@@ -1298,10 +1339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (currentVal < minVal) input.value = minVal;
                  else if (currentVal > maxVal) input.value = maxVal;
             }
-             if (applyBtn) applyBtn.disabled = false; 
-            const discardBtn = document.getElementById('discardBtn');
-            if (discardBtn) discardBtn.disabled = false; // Also enable discard
-            if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
+            markChangesPending(applyBtn, discardBtn, presetSelect);
         });
     }
 

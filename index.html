@@ -85,6 +85,15 @@
                 <label for="possibleColorsInput">Max Colors:</label>
                 <input type="number" id="possibleColorsInput" min="2" max="12" value="5" title="Max colors for random rules (2-12)">
             </div>
+            <!-- Added Movement Mode Select -->
+            <div class="input-container random-movement-mode-container">
+                <label for="randomMoveModeSelect">Movement:</label>
+                <select id="randomMoveModeSelect" title="Movement types used for random rule generation">
+                    <option value="relative" selected>Relative</option>
+                    <option value="absolute">Absolute</option>
+                    <option value="mixed">Mixed</option>
+                </select>
+            </div>
             <!-- Rule Actions -->
             <div class="button-group rule-actions">
                 <button id="randomizeBtn" title="Randomize Rules (F)">Randomize</button>
