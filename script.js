@@ -74,6 +74,8 @@ function generateRandomRules(numStates, numColorsToUse) {
     const newRules = {};
     const moveModeSelect = document.getElementById('randomMoveModeSelect');
     const moveMode = moveModeSelect ? moveModeSelect.value : 'relative'; // Default to relative
+    const allowRandomMoveCheck = document.getElementById('allowRandomMoveCheck');
+    const allowRandomMove = allowRandomMoveCheck ? allowRandomMoveCheck.checked : false;
 
     const relativeMoves = ['L', 'R', 'N', 'U', 'S'];
     const absoluteMoves = ['^', '>', 'v', '<', 'S', 'N']; // Include S and N for variety
@@ -90,6 +92,11 @@ function generateRandomRules(numStates, numColorsToUse) {
         default:
             moveOptions = relativeMoves;
             break;
+    }
+
+    // Add ' ? ' if allowed
+    if (allowRandomMove) {
+        moveOptions.push('?');
     }
 
     for (let s = 0; s < numStates; s++) {
@@ -111,6 +118,8 @@ function generateRandomRulesForAnt(numStates, numColorsToUse) {
     const antSpecificRules = {};
     const moveModeSelect = document.getElementById('randomMoveModeSelect');
     const moveMode = moveModeSelect ? moveModeSelect.value : 'relative'; // Default to relative
+    const allowRandomMoveCheck = document.getElementById('allowRandomMoveCheck');
+    const allowRandomMove = allowRandomMoveCheck ? allowRandomMoveCheck.checked : false;
 
     const relativeMoves = ['L', 'R', 'N', 'U', 'S'];
     const absoluteMoves = ['^', '>', 'v', '<', 'S', 'N']; // Include S and N for variety
@@ -127,6 +136,11 @@ function generateRandomRulesForAnt(numStates, numColorsToUse) {
         default:
             moveOptions = relativeMoves;
             break;
+    }
+
+    // Add ' ? ' if allowed
+    if (allowRandomMove) {
+        moveOptions.push('?');
     }
 
     for (let s = 0; s < numStates; s++) {
@@ -277,6 +291,7 @@ function initAnts(preservedIndividualRules = null) {
     const loadRuleBtn = document.getElementById('loadRuleBtn'); // Get load button
     const presetSelect = document.getElementById('presetSelect'); // Get preset select
     const randomMoveModeSelect = document.getElementById('randomMoveModeSelect'); // Get move mode select
+    const allowRandomMoveCheck = document.getElementById('allowRandomMoveCheck'); // Get random move checkbox
 
     const startMode = startPositionSelect ? startPositionSelect.value : 'center';
     const startDirMode = startDirectionSelect ? startDirectionSelect.value : '0'; // Read direction mode
@@ -698,6 +713,9 @@ function stepSingleAntLogic(ant) {
         case '>': ant.dir = 1; break; // East
         case 'v': ant.dir = 2; break; // South
         case '<': ant.dir = 3; break; // West
+        case '?': // Random absolute direction
+            ant.dir = Math.floor(Math.random() * 4);
+            break;
         default: break; // Treat any other unknown character like 'N'
     }
     // --- Determine Movement Delta (only if not 'S') ---
@@ -1027,9 +1045,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const discardBtn = document.getElementById('discardBtn'); // Get discard button
     const presetSelect = document.getElementById('presetSelect'); // Get preset select
     const randomMoveModeSelect = document.getElementById('randomMoveModeSelect'); // Get move mode select
+    const allowRandomMoveCheck = document.getElementById('allowRandomMoveCheck'); // Get random move checkbox
 
     // Check all required elements rigorously
-    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */ || !saveRuleBtn || !loadRuleBtn || !discardBtn || !presetSelect || !randomMoveModeSelect /* Add check */ ) {
+    if (!simSpeedSlider || !simSpeedValueSpan || !startStopBtn || !resetBtn || !resetViewBtn || !minimizeBtn || !maximizeBtn || !controlPanel || !rulesDisplay || !applyBtn || !randomizeBtn || !antCountInput || !startPositionSelect || !possibleStatesInput || !possibleColorsInput || !rulesDisplayContainer || !individualRulesCheck || !individualRulesContainer || !editRuleBtn || !ruleLabel || !startDirectionSelect || !rulesDisplayPre /* Add check */ || !saveRuleBtn || !loadRuleBtn || !discardBtn || !presetSelect || !randomMoveModeSelect /* Add check */ || !allowRandomMoveCheck /* Add check */ ) {
         console.error("One or more control panel elements were not found! Aborting setup.");
         // Optionally log which specific ones were null
         if (!simSpeedSlider) console.error("- simSpeedSlider is null");
@@ -1059,6 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!discardBtn) console.error("- discardBtn is null"); // Add log for discard button
         if (!presetSelect) console.error("- presetSelect is null"); // Add log for preset select
         if (!randomMoveModeSelect) console.error("- randomMoveModeSelect is null"); // Add log for move mode select
+        if (!allowRandomMoveCheck) console.error("- allowRandomMoveCheck is null"); // Add log for random move checkbox
         return; // Stop execution
     }
 
@@ -1556,6 +1576,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (applyBtn) applyBtn.disabled = true;
     if (discardBtn) discardBtn.disabled = true;
     console.log("Disabled Apply/Discard after initial preset load.");
+
+    // Allow Random Move Checkbox Listener
+    if (allowRandomMoveCheck) {
+        allowRandomMoveCheck.addEventListener('change', () => {
+            markChangesPending(applyBtn, discardBtn, presetSelect);
+        });
+    }
 });
 
 // Global listeners like resize can often stay global
