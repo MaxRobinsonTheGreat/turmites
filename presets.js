@@ -55,6 +55,27 @@ const presetDefinitions = {
             ]
         }
     },
+    simpleFace: {
+        name: "Smiley Face",
+        rules: {
+            // Eyes: White (1), Mouth: Pink (9), Skip/Background: Black (0)
+            0: [ { writeColor: 1, move: '>', nextState: 1 } ],  // Paint L_Eye (White), Move R
+            1: [ { writeColor: 0, move: '>', nextState: 2 } ],  // Skip, Move R
+            2: [ { writeColor: 0, move: '>', nextState: 3 } ],  // Skip, Move R
+            3: [ { writeColor: 0, move: '>', nextState: 4 } ],  // Skip, Move R
+            4: [ { writeColor: 1, move: 'v', nextState: 5 } ],  // Paint R_Eye (White), Move D
+            5: [ { writeColor: 0, move: 'v', nextState: 6 } ],  // Skip, Move D (align Y for mouth end R)
+            6: [ { writeColor: 9, move: '<', nextState: 7 } ],  // Paint Mouth_End_R (Pink), Move L
+            7: [ { writeColor: 0, move: 'v', nextState: 8 } ],  // Skip, Move D (align Y for mouth mid)
+            8: [ { writeColor: 9, move: '<', nextState: 9 } ],  // Paint Mouth_Mid_R (Pink), Move L
+            9: [ { writeColor: 9, move: '<', nextState: 10 } ], // Paint Mouth_Center (Pink), Move L
+            10: [ { writeColor: 9, move: '<', nextState: 11 } ],// Paint Mouth_Mid_L (Pink), Move L
+            11: [ { writeColor: 0, move: '^', nextState: 12 } ],// Skip, Move U (align Y for mouth end L)
+            12: [ { writeColor: 9, move: '>', nextState: 13 } ],// Paint Mouth_End_L (Pink), Move R (towards nose)
+            13: [ { writeColor: 0, move: '>', nextState: 14 } ],// Skip, Move R (center under nose)
+            14: [ { writeColor: 0, move: '^', nextState: -1 } ] // Skip, Move U (to nose), HALT
+        }
+    },
     archimedesSpiral: {
         name: "Archimedes Spiral",
         rules: {

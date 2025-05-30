@@ -1568,10 +1568,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Populate Preset Select Dropdown Dynamically ---
+    if (presetSelect && typeof presetDefinitions !== 'undefined') {
+        presetSelect.innerHTML = ''; // Clear existing hardcoded options
+
+        for (const key in presetDefinitions) {
+            if (presetDefinitions.hasOwnProperty(key)) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = presetDefinitions[key].name;
+                presetSelect.appendChild(option);
+            }
+        }
+        // Add the 'Custom' option and select it by default or select the first available preset
+        const customOption = document.createElement('option');
+        customOption.value = 'custom';
+        customOption.textContent = 'Custom';
+        presetSelect.appendChild(customOption);
+        // presetSelect.value = 'custom'; // Default to custom
+        // Or, to select the first actual preset if available:
+        if (presetSelect.options.length > 1) { // Check if any presets were added besides custom
+             presetSelect.value = presetSelect.options[0].value; 
+        }
+
+    } else {
+        console.warn("presetSelect element or presetDefinitions not found. Dropdown will not be populated dynamically.");
+    }
+    // --- End Dynamic Population ---
+
     initSimulation(false, undefined, undefined, true); // Initial Load
 
     // Load the default preset AFTER the initial simulation setup
-    loadPresetRule(presetSelect.value);
+    // Ensure a valid preset is selected before calling loadPresetRule
+    if (presetSelect.value) {
+        loadPresetRule(presetSelect.value);
+    } else if (presetSelect.options.length > 0) {
+        // Fallback to the first option if no value is set (e.g. if 'custom' was the only one and we want to load first actual preset)
+        presetSelect.value = presetSelect.options[0].value;
+        loadPresetRule(presetSelect.value);
+    }
+
     // --- Disable buttons immediately after initial preset load --- 
     if (applyBtn) applyBtn.disabled = true;
     if (discardBtn) discardBtn.disabled = true;
