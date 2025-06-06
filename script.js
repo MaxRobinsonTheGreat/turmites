@@ -540,7 +540,7 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     // Prepare rules display string with simplified metadata comments
     let rulesString = `// States: ${numStatesInRules}\n`;
     rulesString += `// Colors: ${numColorsInRules}\n`; // Just the count
-    rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
+    rulesString += `// Moves: L:Left, R:Right, U:U-Turn, N:No Turn (forward), S:Stay, ^>v<:Absolute Dirs, ?:Random\n\n`;
     try { rulesString += JSON.stringify(rules, null, 2); } catch (e) { rulesString = "Error stringifying rules.";}
     if (rulesDisplay) rulesDisplay.textContent = rulesString;
     
@@ -1448,7 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         let rulesString = "";
                         rulesString += `// States: ${numStates}\n`;
                         rulesString += `// Colors: ${numColors}\n`; 
-                        rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
+                        rulesString += `// Moves: L:Left, R:Right, U:U-Turn, N:No Turn (forward), S:Stay, ^>v<:Absolute Dirs, ?:Random\n\n`;
                         rulesString += JSON.stringify(parsedRules, null, 2);
 
                         rulesEditor.textContent = rulesString;
@@ -1547,7 +1547,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let rulesString = `// Preset: ${presetName}\n`;
                 rulesString += `// States: ${numStates}\n`;
                 rulesString += `// Colors: ${numColors}\n`; 
-                rulesString += `// Moves: L:Left, R:Right, N:None, U:U-Turn, S:Stay\n\n`;
+                rulesString += `// Moves: L:Left, R:Right, U:U-Turn, N:No Turn (forward), S:Stay, ^>v<:Absolute Dirs, ?:Random\n\n`;
                 rulesString += JSON.stringify(presetRules, null, 2);
 
                 rulesEditor.textContent = rulesString;
