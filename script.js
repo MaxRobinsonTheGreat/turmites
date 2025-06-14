@@ -1,11 +1,12 @@
-const canvas = document.getElementById('antCanvas');
-const ctx = canvas.getContext('2d');
+let canvas = document.getElementById('antCanvas');
+let ctx = canvas.getContext('2d');
 
 let width, height;
 const cellSize = 1; // Logical size of each cell (we zoom the canvas, not change this)
-let grid;
+let grid; // Keep the declaration
+const defaultColor = 0; // The color of an empty, unvisited cell (usually black)
 let ants = []; // Array to hold multiple ants
-let gridCols = 0, gridRows = 0;
+let gridCols = 0, gridRows = 0; // These are still used for initial ant placement and camera reset
 let intervalId = null;
 let stepsPerTick; // Number of steps to run per interval tick
 let isRunning = true; // Simulation starts running
@@ -214,21 +215,44 @@ function setCanvasSmoothing(enabled) {
      ctx.msImageSmoothingEnabled = enabled;
 }
 
-function initGrid() {
-    // Calculate grid size based on current viewport and CURRENT scale
-    gridCols = Math.ceil(width / scale); // Use current scale
-    gridRows = Math.ceil(height / scale); // Use current scale
+// --- Helper Functions ---
 
-    if (gridCols <= 0 || gridRows <= 0) { 
-        console.warn("Cannot init grid with zero/negative dimensions, possibly invalid scale?", {width, height, scale});
-        gridCols = 1; gridRows = 1; // Set minimum size to prevent errors down the line
-    }
-    const defaultColorIndex = 0;
-    grid = Array(gridRows).fill(null).map(() => Array(gridCols).fill(defaultColorIndex));
-    console.log(`Initialized grid: ${gridCols}x${gridRows} with color ${defaultColorIndex} (${cellColors[defaultColorIndex]}) using scale ${scale}`);
+/**
+ * Initializes or resets the grid to an empty state (a new Map).
+ */
+function initGrid() {
+    grid = new Map();
+    cellsToUpdate.clear(); // Clear any pending updates
+    needsFullRedraw = true; // Ensure a full redraw after grid reset
 }
 
-// --- Helper Functions ---
+/**
+ * Gets the color of a cell from the dynamic grid.
+ * @param {number} x The x-coordinate.
+ * @param {number} y The y-coordinate.
+ * @returns {number} The color index of the cell.
+ */
+function getGridColor(x, y) {
+    // If the map doesn't have the key, it's a default background cell.
+    return grid.get(`${x},${y}`) ?? defaultColor;
+}
+
+/**
+ * Sets the color of a cell in the dynamic grid.
+ * Optimizes by removing cells that are set back to the default color.
+ * @param {number} x The x-coordinate.
+ * @param {number} y The y-coordinate.
+ * @param {number} color The color index to set.
+ */
+function setGridColor(x, y, color) {
+    const key = `${x},${y}`;
+    if (color === defaultColor) {
+        // Optimization: If writing the default color, remove from map to save memory.
+        grid.delete(key);
+    } else {
+        grid.set(key, color);
+    }
+}
 
 // Helper function to update visibility and state of Individual Rules controls
 function updateIndividualRulesVisibility(antCount, rulesDisplayContainer, individualRulesContainer, individualRulesCheck, rulesDisplayPre) {
@@ -653,24 +677,13 @@ function updateButtonText() {
 
 // Renamed and parameterized
 function stepSingleAntLogic(ant) {
-    if (!grid || !ant) return; // Check individual ant
-    if (ant.state === -1) return; // HALT state: do nothing further
-    if (gridCols <= 0 || gridRows <= 0) return;
+    if (!grid || !ant || ant.state === -1) return; // HALT state: do nothing further
 
-    ant.x = (ant.x + gridCols) % gridCols;
-    ant.y = (ant.y + gridRows) % gridRows;
-
-    if (!grid[ant.y] || ant.y < 0 || ant.y >= grid.length || ant.x < 0 || ant.x >= grid[ant.y].length) {
-         console.error("Ant out of bounds after wrap:", ant);
-         // Optionally reset the specific ant instead of returning?
-         // ant.x = Math.floor(gridCols / 2);
-         // ant.y = Math.floor(gridRows / 2);
-         return;
-     }
+    // The grid is now infinite, so no boundary wraparound or checks needed.
 
     const currentCellX = ant.x;
     const currentCellY = ant.y;
-    const currentCellColor = grid[currentCellY][currentCellX];
+    const currentCellColor = getGridColor(currentCellX, currentCellY); // Use new getter function.
     const currentState = ant.state;
 
     const ruleSetToUse = ant.individualRule || rules;
@@ -692,9 +705,9 @@ function stepSingleAntLogic(ant) {
     
     // --- Record change only if color is different ---
     if (rule.writeColor !== currentCellColor) {
-        grid[currentCellY][currentCellX] = rule.writeColor;
-        cellsToUpdate.add(`${currentCellX},${currentCellY}`); 
-    } 
+        setGridColor(currentCellX, currentCellY, rule.writeColor); // Use new setter function. Corrected to (x,y)
+        cellsToUpdate.add(`${currentCellX},${currentCellY}`);
+    }
 
     let dx = 0, dy = 0;
     // --- Determine Direction Change --- 
@@ -798,57 +811,45 @@ function drawAntShape(ant) {
  }
 
 function drawGrid() {
-    if (!grid || !grid.length || !grid[0].length || !ctx) return;
-    // Remove save/transform/restore - calculate pixels directly
-    // ctx.save();
-    // ctx.translate(offsetX, offsetY);
-    // ctx.scale(scale, scale);
-    setCanvasSmoothing(false); // Still important
+    if (!grid || !ctx) return;
+    setCanvasSmoothing(false);
 
-    if (gridCols <= 0 || gridRows <= 0) { return; }
-
-    // Calculate visible grid bounds (in grid cell coordinates - still useful)
-    const viewX1 = -offsetX / scale, viewY1 = -offsetY / scale;
-    const viewX2 = (width - offsetX) / scale, viewY2 = (height - offsetY) / scale;
+    // Calculate visible bounds (this logic is still useful!)
+    const viewX1 = -offsetX / scale;
+    const viewY1 = -offsetY / scale;
+    const viewX2 = (width - offsetX) / scale;
+    const viewY2 = (height - offsetY) / scale;
     const cellSize = 1;
-    // Add a small buffer to catch cells partially visible at edges
-    const buffer = 2;
-    const startCol = Math.max(0, Math.floor(viewX1 / cellSize) - buffer);
-    const endCol = Math.min(gridCols, Math.ceil(viewX2 / cellSize) + buffer);
-    const startRow = Math.max(0, Math.floor(viewY1 / cellSize) - buffer);
-    const endRow = Math.min(gridRows, Math.ceil(viewY2 / cellSize) + buffer);
 
-    // Draw ALL cells using calculated pixel coordinates
-    for (let y = startRow; y < endRow; y++) {
-        if (y < 0 || y >= grid.length || !grid[y]) continue;
-        for (let x = startCol; x < endCol; x++) {
-             if (x < 0 || x >= grid[y].length) continue;
+    // NEW: Iterate over the map entries instead of a fixed 2D array
+    for (const [coordString, colorIndex] of grid.entries()) {
+        const [xStr, yStr] = coordString.split(',');
+        const x = parseInt(xStr, 10);
+        const y = parseInt(yStr, 10);
 
-            const colorIndex = grid[y][x];
-            // Draw ALL valid color indices (including 0)
-            if (colorIndex >= 0 && colorIndex < cellColors.length) {
-                 ctx.fillStyle = cellColors[colorIndex];
+        // OPTIONAL but good: A quick check to see if the cell is even close to the viewport
+        if (x < viewX1 - 1 || x > viewX2 + 1 || y < viewY1 - 1 || y > viewY2 + 1) {
+            continue;
+        }
 
-                 // Calculate final pixel coordinates and dimensions
-                 const px = Math.floor(offsetX + x * cellSize * scale);
-                 const py = Math.floor(offsetY + y * cellSize * scale);
-                 const pw = Math.ceil(cellSize * scale);
-                 const ph = Math.ceil(cellSize * scale);
+        ctx.fillStyle = cellColors[colorIndex];
+        const px = Math.floor(offsetX + x * cellSize * scale);
+        const py = Math.floor(offsetY + y * cellSize * scale);
+        const pw = Math.ceil(cellSize * scale);
+        const ph = Math.ceil(cellSize * scale);
 
-                 if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
-                    ctx.fillRect(px, py, pw, ph);
-                 }
-            } // else { console.warn(`Invalid color index at ${x},${y}: ${colorIndex}`); } // Optional: Warn on invalid index
+        // This check is now even more important!
+        if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
+            ctx.fillRect(px, py, pw, ph);
         }
     }
 
-    // --- Draw Ants (Enable Smoothing) --- 
-    setCanvasSmoothing(true); // Enable AA for shapes
-    for (let i = 0; i < ants.length; i++) {
-        if (ants[i]) drawAntShape(ants[i]); // Call without isFullRedraw
+    // --- Draw Ants (this part is unchanged) ---
+    setCanvasSmoothing(true);
+    for (const ant of ants) {
+        if (ant) drawAntShape(ant);
     }
-    setCanvasSmoothing(false); // Disable AA immediately after
-    // ctx.restore(); // No restore needed
+    setCanvasSmoothing(false);
 }
 
 // Function to draw updates efficiently
@@ -863,10 +864,10 @@ function drawUpdates() {
         const x = parseInt(xStr, 10);
         const y = parseInt(yStr, 10);
 
-        // Ensure coordinate is valid and on grid before drawing
-        if (isNaN(x) || isNaN(y) || y < 0 || y >= grid.length || x < 0 || x >= grid[y].length) return;
+        // Ensure coordinate is valid
+        if (isNaN(x) || isNaN(y)) return;
 
-        const colorIndex = grid[y][x]; // Get the CURRENT color of the cell
+        const colorIndex = getGridColor(x, y); // Use the new getter
         if (colorIndex >= 0 && colorIndex < cellColors.length) {
              ctx.fillStyle = cellColors[colorIndex];
              const px = Math.floor(offsetX + x * cellSize * scale);
@@ -1746,4 +1747,311 @@ function calculateSimDelay(targetStepsPerSec) {
     // Calculate delay, clamp between 0 (for max speed) and a reasonable max
     const delay = 1000 / targetStepsPerSec;
     return Math.max(0, Math.min(10000, delay)); // Clamp delay (0ms to 10s)
+}
+
+function runTests() {
+    console.log("%c--- Running Turmite Tests ---", "color: yellow; font-size: 1.2em;");
+    let allTestsPassed = true;
+
+    function assert(condition, message) {
+        if (condition) {
+            console.log(`%c  ✅ PASS: ${message}`, "color: #8f8");
+        } else {
+            console.error(`%c  ❌ FAIL: ${message}`, "color: #f88");
+            allTestsPassed = false;
+        }
+    }
+
+    // Test 1: Grid Accessor Tests
+    console.log("\n-- Testing Grid Accessors --");
+    initGrid(); // Start with a clean grid (renamed from resetGrid)
+    setGridColor(5, 10, 3);
+    assert(getGridColor(5, 10) === 3, "Grid Accessor 1.1: Should set and get a color at (5, 10).");
+    assert(getGridColor(0, 0) === defaultColor, "Grid Accessor 1.2: Unset cell (0, 0) should return default color.");
+    assert(grid.has("5,10"), "Grid Accessor 1.3: Map should have key '5,10'.");
+    setGridColor(5, 10, defaultColor); // Set back to default
+    assert(getGridColor(5, 10) === defaultColor, "Grid Accessor 1.4: Cell (5, 10) should return default color after reset.");
+    assert(!grid.has("5,10"), "Grid Accessor 1.5: Map should NOT have key '5,10' after setting to default.");
+
+    // Test coordinate edge cases (negative, zero, large numbers)
+    setGridColor(-1, -1, 1);
+    assert(getGridColor(-1, -1) === 1, "Grid Accessor 1.6: Should set and get color at negative coordinates (-1, -1).");
+    setGridColor(100000, 200000, 2);
+    assert(getGridColor(100000, 200000) === 2, "Grid Accessor 1.7: Should set and get color at large coordinates.");
+    initGrid(); // Clean grid for next test
+    assert(getGridColor(-5, -5) === defaultColor, "Grid Accessor 1.8: Unset negative cell should return default color.");
+    assert(getGridColor(999999, 999999) === defaultColor, "Grid Accessor 1.9: Unset large coordinate cell should return default color.");
+
+    // Test 2: Boundary Crossing Tests
+    console.log("\n-- Testing Ant Step at Boundary --");
+    initGrid();
+    // Test ant movement in all 4 directions past coordinate (0,0)
+    // Ant 1: Start at (0,0), facing North (dir 0), move North
+    rules = { 0: [{ writeColor: 1, move: '^', nextState: 0 }] }; // Absolute North
+    let ant1 = { x: 0, y: 0, dir: 0, state: 0 };
+    stepSingleAntLogic(ant1);
+    assert(ant1.x === 0 && ant1.y === -1, "Boundary Crossing 2.1: Ant should move North to (0, -1).");
+    assert(getGridColor(0, 0) === 1, "Boundary Crossing 2.2: (0,0) should be color 1 after ant1 moves.");
+    initGrid();
+
+    // Ant 2: Start at (0,0), facing East (dir 1), move East
+    rules = { 0: [{ writeColor: 1, move: '>', nextState: 0 }] }; // Absolute East
+    let ant2 = { x: 0, y: 0, dir: 1, state: 0 };
+    stepSingleAntLogic(ant2);
+    assert(ant2.x === 1 && ant2.y === 0, "Boundary Crossing 2.3: Ant should move East to (1, 0).");
+    assert(getGridColor(0, 0) === 1, "Boundary Crossing 2.4: (0,0) should be color 1 after ant2 moves.");
+    initGrid();
+
+    // Ant 3: Start at (0,0), facing South (dir 2), move South
+    rules = { 0: [{ writeColor: 1, move: 'v', nextState: 0 }] }; // Absolute South
+    let ant3 = { x: 0, y: 0, dir: 2, state: 0 };
+    stepSingleAntLogic(ant3);
+    assert(ant3.x === 0 && ant3.y === 1, "Boundary Crossing 2.5: Ant should move South to (0, 1).");
+    assert(getGridColor(0, 0) === 1, "Boundary Crossing 2.6: (0,0) should be color 1 after ant3 moves.");
+    initGrid();
+
+    // Ant 4: Start at (0,0), facing West (dir 3), move West
+    rules = { 0: [{ writeColor: 1, move: '<', nextState: 0 }] }; // Absolute West
+    let ant4 = { x: 0, y: 0, dir: 3, state: 0 };
+    stepSingleAntLogic(ant4);
+    assert(ant4.x === -1 && ant4.y === 0, "Boundary Crossing 2.7: Ant should move West to (-1, 0).");
+    assert(getGridColor(0, 0) === 1, "Boundary Crossing 2.8: (0,0) should be color 1 after ant4 moves.");
+    initGrid();
+
+    // Ensure no wraparound behavior occurs (explicit check)
+    rules = { 0: [{ writeColor: 1, move: '^', nextState: 0 }] }; // Move North
+    let antWrap = { x: 0, y: 0, dir: 0, state: 0 };
+    for (let i = 0; i < 10; i++) { // Move 10 steps North
+        stepSingleAntLogic(antWrap);
+    }
+    assert(antWrap.y === -10, "Boundary Crossing 2.9: Ant should continue moving negatively, no wraparound.");
+    assert(!grid.has(`${0},${gridRows - 1}`), "Boundary Crossing 2.10: No wraparound occurred on grid.");
+    initGrid();
+
+    // Test 3: Simulation Logic Tests
+    console.log("\n-- Testing Simulation Logic --");
+    initGrid();
+    // Test Langton's Ant rule (R, L)
+    rules = { 0: [{ writeColor: 1, move: 'R', nextState: 0 }, { writeColor: 0, move: 'L', nextState: 0 }] };
+    let langtonAnt = { x: 0, y: 0, dir: 0, state: 0 }; // Start North
+
+    // Step 1: At (0,0), color 0 (default), rule is {write:1, move:R, nextState:0}
+    stepSingleAntLogic(langtonAnt);
+    assert(getGridColor(0, 0) === 1, "Simulation Logic 3.1: Langton Ant - Cell (0,0) should be color 1.");
+    assert(langtonAnt.dir === 1, "Simulation Logic 3.2: Langton Ant - Ant should turn East (dir 1).");
+    assert(langtonAnt.x === 1 && langtonAnt.y === 0, "Simulation Logic 3.3: Langton Ant - Ant should move to (1,0).");
+    assert(langtonAnt.state === 0, "Simulation Logic 3.4: Langton Ant - Ant state should remain 0.");
+
+    // Step 2: At (1,0), color 0 (default), rule is {write:1, move:R, nextState:0}
+    stepSingleAntLogic(langtonAnt);
+    assert(getGridColor(1, 0) === 1, "Simulation Logic 3.5: Langton Ant - Cell (1,0) should be color 1.");
+    assert(langtonAnt.dir === 2, "Simulation Logic 3.6: Langton Ant - Ant should turn South (dir 2).");
+    assert(langtonAnt.x === 1 && langtonAnt.y === 1, "Simulation Logic 3.7: Langton Ant - Ant should move to (1,1).");
+
+    // Test a multi-state rule
+    initGrid();
+    // Rule: (State 0, Color 0) -> Write 1, Move R, Next State 1
+    //       (State 1, Color 0) -> Write 2, Move L, Next State 0
+    rules = {
+        0: [{ writeColor: 1, move: 'R', nextState: 1 }],
+        1: [{ writeColor: 2, move: 'L', nextState: 0 }]
+    };
+    let multiStateAnt = { x: 0, y: 0, dir: 0, state: 0 }; // Start North, State 0
+
+    // Step 1: State 0, Color 0 -> Write 1, Move R, Next State 1
+    stepSingleAntLogic(multiStateAnt);
+    assert(getGridColor(0, 0) === 1, "Simulation Logic 3.8: Multi-state - Cell (0,0) should be color 1.");
+    assert(multiStateAnt.dir === 1, "Simulation Logic 3.9: Multi-state - Ant should turn East (dir 1).");
+    assert(multiStateAnt.x === 1 && multiStateAnt.y === 0, "Simulation Logic 3.10: Multi-state - Ant should move to (1,0).");
+    assert(multiStateAnt.state === 1, "Simulation Logic 3.11: Multi-state - Ant state should be 1.");
+
+    // Step 2: State 1, Color 0 -> Write 2, Move L, Next State 0
+    stepSingleAntLogic(multiStateAnt);
+    assert(getGridColor(1, 0) === 2, "Simulation Logic 3.12: Multi-state - Cell (1,0) should be color 2.");
+    assert(multiStateAnt.dir === 0, "Simulation Logic 3.13: Multi-state - Ant should turn North (dir 0).");
+    assert(multiStateAnt.x === 1 && multiStateAnt.y === -1, "Simulation Logic 3.14: Multi-state - Ant should move to (1,-1).");
+    assert(multiStateAnt.state === 0, "Simulation Logic 3.15: Multi-state - Ant state should be 0.");
+
+    // Test 'S' (Stay) move
+    initGrid();
+    rules = { 0: [{ writeColor: 1, move: 'S', nextState: 0 }] };
+    let stayAnt = { x: 0, y: 0, dir: 0, state: 0 };
+    stepSingleAntLogic(stayAnt);
+    assert(getGridColor(0, 0) === 1, "Simulation Logic 3.16: Stay Ant - Cell (0,0) should be color 1.");
+    assert(stayAnt.x === 0 && stayAnt.y === 0, "Simulation Logic 3.17: Stay Ant - Ant should NOT move.");
+    assert(stayAnt.dir === 0, "Simulation Logic 3.18: Stay Ant - Ant direction should NOT change.");
+
+    // Test '?' (Random) move - difficult to assert exact position, but can check color change
+    initGrid();
+    rules = { 0: [{ writeColor: 1, move: '?', nextState: 0 }] };
+    let randomAnt = { x: 0, y: 0, dir: 0, state: 0 };
+    stepSingleAntLogic(randomAnt);
+    assert(getGridColor(0, 0) === 1, "Simulation Logic 3.19: Random Ant - Cell (0,0) should be color 1.");
+    // Cannot assert exact x,y but can check if it moved (i.e., not (0,0) unless it happened to move back)
+    // For a random move, we just check the origin cell's color change.
+
+    // Test HALT state
+    initGrid();
+    let haltAnt = { x: 0, y: 0, dir: 0, state: -1 }; // Ant in HALT state
+    setGridColor(0, 0, 1); // Set a color to verify no change
+    stepSingleAntLogic(haltAnt);
+    assert(getGridColor(0, 0) === 1, "Simulation Logic 3.20: HALT Ant - Cell color should NOT change.");
+    assert(haltAnt.x === 0 && haltAnt.y === 0, "Simulation Logic 3.21: HALT Ant - Ant position should NOT change.");
+    assert(haltAnt.dir === 0, "Simulation Logic 3.22: HALT Ant - Ant direction should NOT change.");
+    assert(haltAnt.state === -1, "Simulation Logic 3.23: HALT Ant - Ant state should remain -1.");
+
+    // Test 4: Rendering Performance Tests (Logical Checks)
+    console.log("\n-- Testing Rendering Performance (Logical) --");
+    initGrid();
+    setGridColor(1, 1, 1);
+    setGridColor(2, 2, 2);
+    setGridColor(3, 3, defaultColor); // Should remove from map
+    assert(grid.size === 2, "Rendering Performance 4.1: drawGrid should only iterate over non-default cells (map size check).");
+
+    // Test drawUpdates() by checking cellsToUpdate
+    initGrid();
+    ants = [{ x: 0, y: 0, dir: 0, state: 0 }];
+    rules = { 0: [{ writeColor: 1, move: 'R', nextState: 0 }] };
+    stepSingleAntLogic(ants[0]);
+    assert(cellsToUpdate.has("0,0"), "Rendering Performance 4.2: cellsToUpdate should contain (0,0) after first step.");
+    assert(cellsToUpdate.has("1,0"), "Rendering Performance 4.3: cellsToUpdate should contain (1,0) (new ant position).");
+    
+    // Simulate drawUpdates clearing the set
+    cellsToUpdate.clear();
+    assert(cellsToUpdate.size === 0, "Rendering Performance 4.4: cellsToUpdate should be cleared after drawUpdates (simulated).");
+
+    // Test 5: Integration Tests (Simulated Interaction)
+    console.log("\n-- Testing Integration (Simulated) --");
+    // Mock DOM elements for initSimulation to work
+    document.body.innerHTML = `
+        <canvas id="antCanvas"></canvas>
+        <div id="controlPanel">
+            <button id="startStopBtn"></button>
+            <button id="resetBtn"></button>
+            <button id="randomizeBtn"></button>
+            <select id="presetSelect"></select>
+            <input type="number" id="antCountInput" value="1" min="1" max="1024">
+            <select id="startPositionSelect"><option value="center">Center</option></select>
+            <select id="startDirectionSelect"><option value="0">North</option></select>
+            <input type="number" id="possibleStatesInput" value="2">
+            <input type="number" id="possibleColorsInput" value="2">
+            <input type="checkbox" id="individualRulesCheck">
+            <div class="individual-rules-container"></div>
+            <pre id="rulesDisplay"></pre>
+            <button id="applyBtn"></button>
+            <button id="discardBtn"></button>
+            <button id="toggleRandomizeOptionsBtn"></button>
+            <div id="randomizeOptionsContent"></div>
+            <input type="checkbox" id="moveRelativeCheck" checked>
+            <input type="checkbox" id="moveAbsoluteCheck">
+            <input type="checkbox" id="moveRandomCheck">
+            <input type="range" id="simSpeedSlider" value="50">
+            <span id="simSpeedValue"></span>
+            <button id="resetViewBtn"></button>
+            <button id="minimizeBtn"></button>
+            <button id="maximizeBtn"></button>
+            <button id="editRuleBtn"></button>
+            <button id="saveRuleBtn"></button>
+            <button id="loadRuleBtn"></button>
+        </div>
+    `;
+    // Re-initialize canvas and ctx after mocking DOM
+    const mockCanvas = document.getElementById('antCanvas');
+    const mockCtx = mockCanvas.getContext('2d');
+    // Reassign global canvas/ctx for tests
+    canvas = mockCanvas;
+    ctx = mockCtx;
+
+    // Mock presetDefinitions if not already globally available (assuming it's in presets.js)
+    // For testing, we'll define a minimal one if it's not loaded
+    if (typeof presetDefinitions === 'undefined') {
+        window.presetDefinitions = {
+            "langtons_ant": {
+                name: "Langton's Ant",
+                rules: { 0: [{ writeColor: 1, move: 'R', nextState: 0 }, { writeColor: 0, move: 'L', nextState: 0 }] }
+            }
+        };
+    }
+
+    // Simulate DOMContentLoaded to attach listeners and run initSimulation
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+
+    // Test simulation start/stop/reset functionality
+    const startStopBtn = document.getElementById('startStopBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const randomizeBtn = document.getElementById('randomizeBtn');
+    const presetSelect = document.getElementById('presetSelect');
+    const antCountInput = document.getElementById('antCountInput');
+    const applyBtn = document.getElementById('applyBtn');
+    const discardBtn = document.getElementById('discardBtn');
+
+    // Test Start/Stop
+    isRunning = false; // Ensure it's off initially for predictable test
+    startStopBtn.click(); // Should start simulation
+    assert(isRunning === true, "Integration 5.1: Start/Stop button should start simulation.");
+    assert(simulationTimeoutId !== null || renderRequestId !== null, "Integration 5.2: Simulation/Render loops should be active.");
+    startStopBtn.click(); // Should stop simulation
+    assert(isRunning === false, "Integration 5.3: Start/Stop button should stop simulation.");
+    assert(simulationTimeoutId === null && renderRequestId === null, "Integration 5.4: Simulation/Render loops should be inactive.");
+
+    // Test Reset
+    isRunning = true; // Set to running, then reset
+    startSimulationLoop(); // Start loops for reset to stop
+    startRenderLoop();
+    resetBtn.click(); // Should reset and stop/restart based on initial state
+    assert(grid.size === 0, "Integration 5.5: Reset button should clear the grid.");
+    assert(ants.length === (parseInt(antCountInput.value, 10) || 1), "Integration 5.6: Reset should re-initialize ants.");
+    // isRunning state after reset depends on 'wasRunning' passed to initSimulation, which here is true
+    assert(isRunning === true, "Integration 5.7: Reset button should keep simulation running if it was running.");
+
+    // Test Randomize
+    initGrid(); // Clear grid for randomize test
+    randomizeBtn.click();
+    assert(Object.keys(rules).length > 0, "Integration 5.8: Randomize button should generate new rules.");
+    assert(grid.size === 0, "Integration 5.9: Randomize should clear the grid.");
+    assert(ants.length === (parseInt(antCountInput.value, 10) || 1), "Integration 5.10: Randomize should re-initialize ants.");
+
+    // Test Preset Loading (Langton's Ant)
+    presetSelect.value = 'langtons_ant';
+    presetSelect.dispatchEvent(new Event('change')); // Simulate change event
+    assert(JSON.stringify(rules) === JSON.stringify(presetDefinitions.langtons_ant.rules), "Integration 5.11: Preset select should load Langton's Ant rules.");
+    assert(applyBtn.disabled === false, "Integration 5.12: Preset load should enable Apply button.");
+    assert(discardBtn.disabled === false, "Integration 5.13: Preset load should enable Discard button.");
+
+    // Test UI Controls (Ant Count, Apply, Discard)
+    antCountInput.value = "5";
+    antCountInput.dispatchEvent(new Event('input')); // Simulate input event
+    assert(applyBtn.disabled === false, "Integration 5.14: Changing ant count should enable Apply button.");
+    applyBtn.click(); // Apply changes
+    assert(ants.length === 5, "Integration 5.15: Apply button should update ant count.");
+    assert(applyBtn.disabled === true, "Integration 5.16: Apply button should be disabled after applying changes.");
+    assert(discardBtn.disabled === true, "Integration 5.17: Discard button should be disabled after applying changes.");
+
+    // Test Discard
+    antCountInput.value = "10"; // Change again
+    antCountInput.dispatchEvent(new Event('input'));
+    assert(applyBtn.disabled === false, "Integration 5.18: Changing ant count again should enable Apply button.");
+    discardBtn.click(); // Discard changes
+    assert(parseInt(antCountInput.value, 10) === 5, "Integration 5.19: Discard button should revert ant count.");
+    assert(applyBtn.disabled === true, "Integration 5.20: Apply button should be disabled after discarding changes.");
+    assert(discardBtn.disabled === true, "Integration 5.21: Discard button should be disabled after discarding changes.");
+
+    // Test 6: Visual Confirmation (Instructions for the developer)
+    console.log("\n-- Visual Test (Manual) --");
+    console.log("1. Load the `Langton's Ant` preset.");
+    console.log("2. Set ant count to 1, start position to 'Center'.");
+    console.log("3. Click 'Apply' and run the simulation.");
+    console.log("4. OBSERVE: The ant should build a 'highway' and travel diagonally off-screen indefinitely.");
+    console.log("5. It should NOT reappear on the other side of the screen (no wraparound).");
+    console.log("6. Pan and zoom the grid. Ensure rendering is smooth and cells appear/disappear correctly.");
+    console.log("7. Test 'Randomize' button, 'Ant Count' changes, and 'Start Position' changes.");
+    console.log("8. Test 'Save Rule' and 'Load Rule' functionality.");
+
+    // Final Result
+    console.log("\n--- Test Suite Complete ---");
+    if (allTestsPassed) {
+        console.log("%c🎉 All automated tests passed!", "color: lightgreen; font-weight: bold;");
+    } else {
+        console.error("%c🔥 Some automated tests failed. Please review logs.", "color: red; font-weight: bold;");
+    }
 }
