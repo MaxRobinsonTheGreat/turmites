@@ -173,6 +173,31 @@ function runTests() {
     return allTestsPassed;
 }
 
+// Import required modules for Node.js test execution
+const {
+    initGrid,
+    getGridColor,
+    setGridColor,
+    getGridSize,
+    hasGridCell,
+    defaultColor
+} = require('../core/grid');
+
+const {
+    createAnt,
+    stepSingleAntLogic,
+    isValidAnt
+} = require('../core/ant');
+
+const {
+    generateRandomRules,
+    generateRandomRulesForAnt,
+    createLangtonsAntRules,
+    validateRules,
+    formatRulesForDisplay,
+    parseRulesFromText
+} = require('../core/rules');
+
 // Export functions for module system
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {

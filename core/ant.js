@@ -130,6 +130,11 @@ function getDirectionName(dir) {
     return names[dir] || 'Unknown';
 }
 
+// Node.js: Import grid functions if running in Node
+if (typeof module !== 'undefined' && module.exports) {
+    var { getGridColor, setGridColor } = require('./grid');
+}
+
 // Export functions for module system
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {

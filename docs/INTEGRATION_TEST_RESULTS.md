@@ -1,5 +1,7 @@
 # Comprehensive Integration Test Results
 
+**Note:** As of June 14, 2025, the legacy `script.js` file has been moved to the `archive/` folder. This file is no longer used in the main application or test suite, and can be safely ignored for future development and testing purposes.
+
 **Date:** June 13, 2025, 11:32 PM  
 **Test Environment:** HTTP Server at http://localhost:8080/index.html  
 **Browser:** Puppeteer-controlled browser instance  
