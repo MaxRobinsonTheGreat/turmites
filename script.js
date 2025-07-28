@@ -657,6 +657,10 @@ function stepSingleAntLogic(ant) {
     if (ant.state === -1) return; // HALT state: do nothing further
     if (gridCols <= 0 || gridRows <= 0) return;
 
+    // Store previous position
+    const prevX = ant.x;
+    const prevY = ant.y;
+
     ant.x = (ant.x + gridCols) % gridCols;
     ant.y = (ant.y + gridRows) % gridRows;
 
@@ -693,8 +697,11 @@ function stepSingleAntLogic(ant) {
     // --- Record change only if color is different ---
     if (rule.writeColor !== currentCellColor) {
         grid[currentCellY][currentCellX] = rule.writeColor;
-        cellsToUpdate.add(`${currentCellX},${currentCellY}`); 
-    } 
+    }
+
+    // Always mark both previous and new cell for redraw!
+    cellsToUpdate.add(`${prevX},${prevY}`);
+    cellsToUpdate.add(`${currentCellX},${currentCellY}`);
 
     let dx = 0, dy = 0;
     // --- Determine Direction Change --- 
@@ -830,12 +837,13 @@ function drawGrid() {
                  ctx.fillStyle = cellColors[colorIndex];
 
                  // Calculate final pixel coordinates and dimensions
-                 const px = Math.floor(offsetX + x * cellSize * scale);
-                 const py = Math.floor(offsetY + y * cellSize * scale);
-                 const pw = Math.ceil(cellSize * scale);
-                 const ph = Math.ceil(cellSize * scale);
-
-                 if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
+                 const px = Math.round(offsetX + x * cellSize * scale);
+                 const py = Math.round(offsetY + y * cellSize * scale);
+                 const px2 = Math.round(offsetX + (x + 1) * cellSize * scale);
+                 const py2 = Math.round(offsetY + (y + 1) * cellSize * scale);
+                 const pw = px2 - px;
+                 const ph = py2 - py;
+                 if (pw > 0 && ph > 0 && px + pw > 0 && px < width && py + ph > 0 && py < height) {
                     ctx.fillRect(px, py, pw, ph);
                  }
             } // else { console.warn(`Invalid color index at ${x},${y}: ${colorIndex}`); } // Optional: Warn on invalid index
@@ -858,24 +866,30 @@ function drawUpdates() {
     const cellSize = 1;
 
     // --- Draw all cells marked for update --- 
-    cellsToUpdate.forEach(coordString => {
+    [...cellsToUpdate]
+    .map(coordString => {
         const [xStr, yStr] = coordString.split(',');
-        const x = parseInt(xStr, 10);
-        const y = parseInt(yStr, 10);
-
-        // Ensure coordinate is valid and on grid before drawing
-        if (isNaN(x) || isNaN(y) || y < 0 || y >= grid.length || x < 0 || x >= grid[y].length) return;
-
-        const colorIndex = grid[y][x]; // Get the CURRENT color of the cell
+        return { x: parseInt(xStr, 10), y: parseInt(yStr, 10), key: coordString };
+    })
+    .filter(({ x, y }) =>
+        !isNaN(x) && !isNaN(y) &&
+        y >= 0 && y < grid.length &&
+        x >= 0 && x < grid[y].length
+    )
+    .sort((a, b) => a.y - b.y || a.x - b.x) // Sort by row, then column
+    .forEach(({ x, y }) => {
+        const colorIndex = grid[y][x];
         if (colorIndex >= 0 && colorIndex < cellColors.length) {
-             ctx.fillStyle = cellColors[colorIndex];
-             const px = Math.floor(offsetX + x * cellSize * scale);
-             const py = Math.floor(offsetY + y * cellSize * scale);
-             const pw = Math.ceil(cellSize * scale);
-             const ph = Math.ceil(cellSize * scale);
-             if (px + pw > 0 && px < width && py + ph > 0 && py < height) {
-                 ctx.fillRect(px, py, pw, ph);
-             }
+            ctx.fillStyle = cellColors[colorIndex];
+            const px = Math.round(offsetX + x * cellSize * scale);
+            const py = Math.round(offsetY + y * cellSize * scale);
+            const px2 = Math.round(offsetX + (x + 1) * cellSize * scale);
+            const py2 = Math.round(offsetY + (y + 1) * cellSize * scale);
+            const pw = px2 - px;
+            const ph = py2 - py;
+            if (pw > 0 && ph > 0 && px + pw > 0 && px < width && py + ph > 0 && py < height) {
+                ctx.fillRect(px, py, pw, ph);
+            }
         }
     });
 
@@ -1656,17 +1670,12 @@ function simulationLoop() {
         for (let i = 0; i < ants.length; i++) {
             const ant = ants[i];
             if (!ant) continue;
-
-            // 1. Record current location before stepping
-            const prevX = ant.x;
-            const prevY = ant.y;
-            cellsToUpdate.add(`${prevX},${prevY}`);
-
-            // 2. Execute step for this ant
+            // Remove these lines:
+            // const prevX = ant.x;
+            // const prevY = ant.y;
+            // cellsToUpdate.add(`${prevX},${prevY}`);
             stepSingleAntLogic(ant);
-
-            // 3. Record new location after stepping
-            cellsToUpdate.add(`${ant.x},${ant.y}`);
+            // cellsToUpdate.add(`${ant.x},${ant.y}`);
         }
 
         nextStepTime += stepDuration;
