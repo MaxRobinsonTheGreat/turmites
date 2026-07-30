@@ -1,4 +1,4 @@
-const canvas = document.getElementById('antCanvas');
+﻿const canvas = document.getElementById('antCanvas');
 const ctx = canvas.getContext('2d');
 
 let width, height;
@@ -225,7 +225,6 @@ function initGrid() {
     }
     const defaultColorIndex = 0;
     grid = Array(gridRows).fill(null).map(() => Array(gridCols).fill(defaultColorIndex));
-    console.log(`Initialized grid: ${gridCols}x${gridRows} with color ${defaultColorIndex} (${cellColors[defaultColorIndex]}) using scale ${scale}`);
 }
 
 // --- Helper Functions ---
@@ -307,8 +306,6 @@ function initAnts(preservedIndividualRules = null) {
     const centerX = Math.floor(gridCols / 2);
     const centerY = Math.floor(gridRows / 2);
     const occupied = new Set(); // To track occupied spots for random/grid modes
-
-    console.log(`Initializing ${validatedAntCount} ants. Mode: ${startMode}, Dir: ${startDirMode}, Indiv Rules: ${useIndividualRules}, Preserved Rules: ${preservedIndividualRules ? preservedIndividualRules.length : 'None'}`);
 
     for (let i = 0; i < validatedAntCount; i++) {
         let gridX, gridY;
@@ -446,7 +443,6 @@ function initAnts(preservedIndividualRules = null) {
 }
 
 function resetCamera() {
-    console.log("Resetting camera view to center initial grid...");
     scale = initialScale; // Reset scale
 
     // Calculate hypothetical grid dimensions based on initial scale
@@ -461,8 +457,6 @@ function resetCamera() {
     offsetX = width / 2 - tempGridCenterX * scale;
     offsetY = height / 2 - tempGridCenterY * scale;
 
-    console.log(`Reset Camera: Scale=${scale}, OffsetX=${offsetX.toFixed(1)}, OffsetY=${offsetY.toFixed(1)} based on grid ${tempGridCols}x${tempGridRows}`);
-
     setCanvasSmoothing(false);
     cellsToUpdate.clear();
     needsFullRedraw = true; // Trigger full redraw
@@ -470,7 +464,6 @@ function resetCamera() {
 }
 
 function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wasRunning = true) {
-    console.log(`initSimulation called. Randomize: ${randomize}, States: ${numStates}, Colors: ${numColorsToUse}, WasRunning: ${wasRunning}`);
     // Stop loops regardless of previous state to ensure clean reset
     stopSimulationLoop();
     stopRenderLoop();
@@ -484,7 +477,6 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     let preservedIndividualRules = null;
     if (!randomize && useIndividual && antCount > 0 && ants.length > 0) {
         preservedIndividualRules = ants.map(ant => ant?.individualRule).filter(rule => rule); // Get existing rules
-        console.log(`Preserving ${preservedIndividualRules.length} individual rules.`);
     }
     // --- End preservation ---
 
@@ -494,7 +486,6 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     }
     // Load default global rules if none exist
     else if (Object.keys(rules).length === 0) {
-        console.log("Generating default Langton's Ant rules (2 colors, 1 state).");
         numStates = 1; // Override defaults for Langton's
         numColorsToUse = 2;
         rules = {
@@ -513,12 +504,10 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     // --- Grid Reset Logic --- 
     const originalScale = scale; // Store user's current scale
     scale = initialScale; // Temporarily set to initial scale for grid creation
-    console.log(`Temporarily setting scale to ${initialScale} for grid init.`);
     initGrid(); // Uses the temporary initialScale
     // Pass preserved rules to initAnts
     initAnts(preservedIndividualRules); // Ants are placed relative to this initial grid
     scale = originalScale; // Restore user's original scale immediately after
-    console.log(`Restored scale to ${scale}.`);
     // The current offsetX/offsetY are preserved, user's view doesn't jump.
 
     // Setup Controls & Display Rules
@@ -576,7 +565,6 @@ function initSimulation(randomize = false, numStates = 1, numColorsToUse = 2, wa
     // else: Paused state handled, initial draw already done.
 
     // --- Store the successfully applied state for potential discard --- 
-    console.log("Storing current state as last applied state.");
     const currentAntCount = antCountInput ? antCountInput.value : '1';
     const currentStartPosition = startPositionSelect ? startPositionSelect.value : 'center';
     const currentStartDirection = startDirectionSelect ? startDirectionSelect.value : '0';
@@ -601,7 +589,6 @@ function startSimulation() {
     stopSimulation(); // Clear any existing timers/loops first
     if (currentIntervalId || timeoutId) { console.warn("startSimulation called while already running?"); return; }
 
-    console.log("startSimulation called. Setting up timer/loop...");
     isRunning = true;
     updateButtonText();
 
@@ -614,35 +601,28 @@ function startSimulation() {
     if (targetFPS >= 240) { // Check against new max value
         // Max Speed Mode: Use setTimeout loop
         currentIntervalDelay = 0; // Indicate no fixed interval
-        console.log(`Starting MAX Speed Mode (setTimeout): Steps/Tick=${currentStepsPerTick}`);
         runMaxSpeedLoop(); // Start the loop
     } else if (targetFPS >= 1) {
         // Normal Mode: Calculate delay from FPS
         currentIntervalDelay = Math.round(1000 / targetFPS);
-        console.log(`Starting Normal Mode: Target FPS=${targetFPS}, Interval=${currentIntervalDelay}ms, Steps/Tick=${currentStepsPerTick}`);
         currentIntervalId = setInterval(runSimulationTick, currentIntervalDelay);
-        console.log(` -> intervalId set: ${currentIntervalId}`);
     } else {
         // Fallback
         currentIntervalDelay = 1000; // 1 FPS
         console.warn(`Invalid Target FPS (${targetFPS}), defaulting to 1 FPS.`);
         currentIntervalId = setInterval(runSimulationTick, currentIntervalDelay);
-        console.log(` -> intervalId set (fallback): ${currentIntervalId}`);
     }
 }
 
 function stopSimulation() {
     if (currentIntervalId) {
-        console.log(`Clearing intervalId: ${currentIntervalId}`);
         clearInterval(currentIntervalId);
         currentIntervalId = null;
     }
     if (timeoutId) {
-        console.log(`Clearing timeoutId: ${timeoutId}`);
         clearTimeout(timeoutId);
         timeoutId = null;
     }
-    console.log("Simulation timer/loop stopped.");
 }
 
 function updateButtonText() {
@@ -749,7 +729,6 @@ function runSimulationTick() {
 function runMaxSpeedLoop() {
     if (!isRunning) {
         timeoutId = null; // Ensure ID is cleared if stopped
-        console.log("Max speed loop detected isRunning=false, stopping.");
         return; // Stop the loop
     }
 
@@ -1003,26 +982,17 @@ window.addEventListener('keydown', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOMContentLoaded event fired.");
     if (!ctx) { console.error("Canvas context not found on DOMContentLoaded!"); return; }
 
     // Get elements and log immediately after each attempt
     const simSpeedSlider = document.getElementById('simSpeedSlider');
-    console.log("simSpeedSlider:", simSpeedSlider);
     const simSpeedValueSpan = document.getElementById('simSpeedValue');
-    console.log("simSpeedValueSpan:", simSpeedValueSpan);
     const startStopBtn = document.getElementById('startStopBtn');
-    console.log("startStopBtn:", startStopBtn);
     const resetBtn = document.getElementById('resetBtn');
-    console.log("resetBtn:", resetBtn);
     const resetViewBtn = document.getElementById('resetViewBtn');
-    console.log("resetViewBtn:", resetViewBtn);
     const minimizeBtn = document.getElementById('minimizeBtn');
-    console.log("minimizeBtn:", minimizeBtn);
     const maximizeBtn = document.getElementById('maximizeBtn');
-    console.log("maximizeBtn:", maximizeBtn);
     const controlPanel = document.getElementById('controlPanel');
-    console.log("controlPanel:", controlPanel);
     const rulesDisplay = document.getElementById('rulesDisplay');
     const applyBtn = document.getElementById('applyBtn');
     const randomizeBtn = document.getElementById('randomizeBtn');
@@ -1085,7 +1055,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return; // Stop execution
     }
 
-    console.log("All control panel elements found. Proceeding with listeners and init...");
 
     // --- Helper Function ---
     function markChangesPending(applyBtn, discardBtn, presetSelect) {
@@ -1109,12 +1078,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Attach Listeners ---
     startStopBtn.addEventListener('click', () => {
         if (isRunning) {
-            console.log("Pause button clicked");
             isRunning = false;
             stopSimulationLoop(); // Stops sim, records pauseTime
             stopRenderLoop();
         } else {
-            console.log("Start button clicked");
             isRunning = true;
             startSimulationLoop(); // Resumes sim, adjusts nextStepTime
             startRenderLoop();
@@ -1210,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply Button Listener - Applies changes AND resets
     if (applyBtn) {
         applyBtn.addEventListener('click', () => {
-            console.log("Applying changes (rules and ant count) and resetting...");
             let rulesChanged = false;
             if (rulesDisplay) {
                 try {
@@ -1222,7 +1188,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (JSON.stringify(rules) !== JSON.stringify(parsedRules)) {
                         rules = parsedRules;
                         rulesChanged = true;
-                        console.log("Rules updated.");
                     }
                 } catch (e) {
                     console.error("Error parsing rules JSON:", e);
@@ -1236,7 +1201,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const discardBtn = document.getElementById('discardBtn');
             if (discardBtn) discardBtn.disabled = true; // Also disable discard
             const currentState = isRunning;
-            console.log("Resetting simulation to apply changes.");
             initSimulation(false, undefined, undefined, currentState); // initSimulation reads ant count and uses current global 'rules'
              // Update visibility based on current state after apply/reset
             if (antCountInput && rulesDisplayContainer && individualRulesContainer && individualRulesCheck && rulesDisplayPre) {
@@ -1254,7 +1218,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Randomize Listener - Reads new inputs
     if (randomizeBtn) {
         randomizeBtn.addEventListener('click', () => {
-            console.log("Randomizing rules and resetting simulation...");
             const currentState = isRunning;
             // Read max states/colors from inputs
             const maxStates = possibleStatesInput ? parseInt(possibleStatesInput.value, 10) : 2;
@@ -1267,8 +1230,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Randomize *within* the max limits
             const randomStates = Math.floor(Math.random() * validatedMaxStates) + 1;
             const randomColors = Math.floor(Math.random() * (validatedMaxColors - 1)) + 2; 
-
-            console.log(` -> Using random states: ${randomStates} (max ${validatedMaxStates}), random colors: ${randomColors} (max ${validatedMaxColors})`);
 
             // Generate rules THEN reset simulation
             initSimulation(true, randomStates, randomColors, currentState);
@@ -1398,8 +1359,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url); // Clean up
-                console.log("Rule saved successfully.");
-
             } catch (e) {
                 console.error("Error processing rule for saving:", e);
                 alert(`Could not save rule. The content (after removing comments) is not valid JSON:\n\n${e.message}`);
@@ -1418,7 +1377,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fileInput.addEventListener('change', (event) => {
                 const file = event.target.files ? event.target.files[0] : null;
                 if (!file) {
-                    console.log("No file selected.");
                     return;
                 }
 
@@ -1456,8 +1414,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (discardBtn) discardBtn.disabled = false; // Also enable discard
                         // Loading a file creates a custom state
                         if (presetSelect) presetSelect.value = 'custom'; // Set preset to Custom
-                        console.log("Rule loaded successfully into editor.");
-
                     } catch (error) {
                         console.error("Error loading or parsing rule file:", error);
                         alert(`Failed to load rule: ${error.message}`);
@@ -1481,8 +1437,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Discard Button Listener
     if (discardBtn) {
         discardBtn.addEventListener('click', () => {
-            console.log("Discarding unapplied changes...");
-            
             // Check if there is a stored state
             if (Object.keys(lastAppliedState).length === 0) {
                 console.warn("No last applied state found to discard to.");
@@ -1515,7 +1469,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Disable Apply and Discard buttons
             if (applyBtn) applyBtn.disabled = true;
             if (discardBtn) discardBtn.disabled = true;
-            console.log("Changes discarded.");
         });
     }
 
@@ -1553,8 +1506,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 rulesEditor.textContent = rulesString;
                 applyBtn.disabled = false; 
                 discardBtn.disabled = false; 
-                console.log(`Preset '${presetName}' loaded into editor.`);
-
             } catch (error) {
                 console.error("Error formatting preset rule:", error);
                 alert(`Failed to load preset '${presetName}': ${error.message}`);
@@ -1616,8 +1567,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Disable buttons immediately after initial preset load --- 
     if (applyBtn) applyBtn.disabled = true;
     if (discardBtn) discardBtn.disabled = true;
-    console.log("Disabled Apply/Discard after initial preset load.");
-
     // Allow Random Move Checkbox Listener
     if (moveRelativeCheck) {
         moveRelativeCheck.addEventListener('change', () => {
@@ -1688,24 +1637,19 @@ function simulationLoop() {
 function startSimulationLoop() {
     if (simulationTimeoutId) return; // Already running
 
-    console.log(`Starting/Resuming Simulation Loop...`);
-
     // Adjust nextStepTime if resuming from pause
     if (pauseTime > 0) {
         const elapsedPausedTime = performance.now() - pauseTime;
         nextStepTime += elapsedPausedTime; // Adjust schedule forward
-        console.log(`Resumed after ${elapsedPausedTime.toFixed(0)}ms pause. Adjusted nextStepTime to ${nextStepTime.toFixed(0)}`);
         pauseTime = 0; // Reset pause time
     } else {
         // If starting fresh, initialize nextStepTime
         nextStepTime = performance.now();
-        console.log(`Starting fresh. Initial nextStepTime ${nextStepTime.toFixed(0)}`);
     }
 
     // Schedule the first call based on adjusted/initial nextStepTime
     const timeToFirstCall = Math.max(0, nextStepTime - performance.now());
     simulationTimeoutId = setTimeout(simulationLoop, timeToFirstCall);
-    console.log(`Scheduled first simulation check in ${timeToFirstCall.toFixed(0)}ms`);
 }
 
 function stopSimulationLoop() {
@@ -1713,7 +1657,6 @@ function stopSimulationLoop() {
         clearTimeout(simulationTimeoutId);
         simulationTimeoutId = null;
         pauseTime = performance.now(); // Record pause time
-        console.log("Simulation Loop stopped.");
     }
 }
 
@@ -1729,7 +1672,6 @@ function renderLoop() {
 
 function startRenderLoop() {
     if (renderRequestId) return; // Already running
-    console.log("Starting Render Loop.");
     renderRequestId = requestAnimationFrame(renderLoop);
 }
 
@@ -1737,7 +1679,6 @@ function stopRenderLoop() {
     if (renderRequestId) {
         cancelAnimationFrame(renderRequestId);
         renderRequestId = null;
-        console.log("Render Loop stopped.");
     }
 }
 
